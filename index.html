@@ -26,6 +26,40 @@
           navigator.serviceWorker.register('/sw.js');
         });
       }
+
+      // ── iOS PWA white-screen fix after file picker ──
+      // When a PWA is in standalone mode, opening the native file picker
+      // puts the WKWebView to sleep. On resume, the GPU compositing layer
+      // is lost, causing a permanent white screen. This forces a repaint.
+      (function() {
+        function forceRepaint() {
+          var root = document.getElementById('root');
+          if (!root) return;
+          root.style.opacity = '0.999';
+          requestAnimationFrame(function() {
+            requestAnimationFrame(function() {
+              root.style.opacity = '';
+            });
+          });
+        }
+
+        // Fires when returning from any external context (file picker, share sheet, etc.)
+        window.addEventListener('pageshow', function(e) {
+          forceRepaint();
+          // If page was restored from bfcache, full reload is needed
+          if (e.persisted) {
+            window.location.reload();
+          }
+        });
+
+        document.addEventListener('visibilitychange', function() {
+          if (!document.hidden) {
+            forceRepaint();
+          }
+        });
+
+        window.addEventListener('focus', forceRepaint);
+      })();
     </script>
   </body>
 </html>

@@ -157,6 +157,27 @@ function MainApp() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // iOS PWA: force React re-render when app returns from background (e.g. after file picker)
+  useEffect(() => {
+    const [repaintTick, setRepaintTick] = React.useState ? undefined : undefined; // noop to keep hooks order
+    const handleVisible = () => {
+      if (!document.hidden) {
+        // Flush GPU layer via opacity flicker
+        const root = document.getElementById('root');
+        if (root) {
+          root.style.opacity = '0.999';
+          requestAnimationFrame(() => { root.style.opacity = ''; });
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisible);
+    window.addEventListener('focus', handleVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisible);
+      window.removeEventListener('focus', handleVisible);
+    };
+  }, []);
+
   useEffect(() => { localStorage.setItem('st_cats', JSON.stringify(customCats)); }, [customCats]);
   useEffect(() => { localStorage.setItem('st_alert', alertPref); }, [alertPref]);
 
