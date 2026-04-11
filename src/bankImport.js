@@ -1,6 +1,7 @@
-// ── bankImport.js - Dynamic imports to avoid iOS WebKit memory crash ──
-// Heavy libs (pdfjs, xlsx, tesseract) are loaded ONLY when the user
-// actually uploads that file type, keeping initial memory footprint minimal.
+// ── bankImport.js - iOS-safe version ──
+// Uses static imports only (no dynamic imports that can fail on iOS PWA)
+// PapaParse uses its own web worker for CSV parsing
+import Papa from 'papaparse';
 
 // ── Known subscription keywords ──
 const SUB_KEYWORDS = [
@@ -46,10 +47,8 @@ function parseAmount(val) {
 function parseDate(val) {
   if (!val) return null;
   const str = String(val).trim();
-  // ISO format
   let d = new Date(str);
   if (!isNaN(d)) return d;
-  // dd/mm/yyyy or dd-mm-yyyy
   const m1 = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
   if (m1) {
     const year = m1[3].length === 2 ? '20' + m1[3] : m1[3];
@@ -122,26 +121,40 @@ function findRecurring(transactions) {
   return results.sort((a, b) => b.price - a.price);
 }
 
-// ── CSV Parser (dynamic import of papaparse) ──
+// ── CSV Parser ──
+// Reads the file as text first (avoids iOS FileReader WebView issues),
+// then parses synchronously so there are no async bridge issues.
 export async function parseCSV(file) {
-  // Dynamic import: only load papaparse on demand
-  const { default: Papa } = await import('papaparse');
+  const text = await file.text();
+  if (!text || text.trim().length === 0) {
+    throw new Error('CSV vuoto o non leggibile');
+  }
 
   return new Promise((resolve, reject) => {
-    Papa.parse(file, {
+    Papa.parse(text, {
       header: true,
       skipEmptyLines: true,
       complete: (result) => {
         try {
           const rows = result.data;
-          if (!rows.length) return reject(new Error('CSV vuoto o non leggibile'));
+          if (!rows || rows.length === 0) {
+            return reject(new Error('CSV senza righe dati'));
+          }
 
-          const descCol = Object.keys(rows[0]).find(c => /desc|descri|narr|detail|merchant|nome|causale|beneficiario/i.test(c));
-          const amtCol = Object.keys(rows[0]).find(c => /amount|importo|ammontare|betrag|valore|addebito|dare/i.test(c));
-          const dateCol = Object.keys(rows[0]).find(c => /date|data|datum|fecha|started|completed|valuta/i.test(c));
+          const descCol = Object.keys(rows[0]).find(c =>
+            /desc|descri|narr|detail|merchant|nome|causale|beneficiario/i.test(c)
+          );
+          const amtCol = Object.keys(rows[0]).find(c =>
+            /amount|importo|ammontare|betrag|valore|addebito|dare/i.test(c)
+          );
+          const dateCol = Object.keys(rows[0]).find(c =>
+            /date|data|datum|fecha|started|completed|valuta/i.test(c)
+          );
 
           if (!descCol) {
-            return reject(new Error('Colonna descrizione non trovata.\n\nColonne presenti: ' + Object.keys(rows[0]).join(', ')));
+            return reject(new Error(
+              'Colonna descrizione non trovata.\nColonne: ' + Object.keys(rows[0]).join(', ')
+            ));
           }
 
           const transactions = rows
@@ -153,82 +166,71 @@ export async function parseCSV(file) {
             .filter(tx => tx.description && tx.amount > 0);
 
           if (transactions.length === 0) {
-            return reject(new Error('Nessuna transazione con importo valido trovata nel CSV.'));
+            return reject(new Error('Nessuna transazione con importo valido trovata.'));
           }
 
           resolve(findRecurring(transactions));
-        } catch (e) {
+        } catch(e) {
           reject(e);
         }
       },
-      error: (err) => reject(new Error('Errore lettura CSV: ' + err.message)),
+      error: (err) => reject(new Error('Errore lettura CSV: ' + (err.message || err))),
     });
   });
 }
 
-// ── PDF Parser (dynamic import of pdfjs-dist) ──
+// ── PDF Parser - NOT supported on mobile, show clear message ──
 export async function parsePDF(file) {
-  const pdfjsLib = await import('pdfjs-dist');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
-  let allText = '';
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const pageText = content.items.map(item => item.str).join(' ');
-    allText += pageText + '\n';
-  }
-
-  return extractFromText(allText, false);
-}
-
-// ── Excel Parser (dynamic import of xlsx) ──
-export async function parseExcel(file) {
-  const XLSX = await import('xlsx');
-  const arrayBuffer = await file.arrayBuffer();
-  const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-  const sheetName = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[sheetName];
-  const csv = XLSX.utils.sheet_to_csv(worksheet);
-  const blob = new Blob([csv], { type: 'text/csv' });
-  return parseCSV(blob);
-}
-
-// ── Image OCR Parser (dynamic import of tesseract.js) ──
-export async function parseImage(file) {
-  const { default: Tesseract } = await import('tesseract.js');
-
-  // Tesseract can hang on mobile — enforce 45s timeout
-  const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Analisi immagine troppo lenta. Prova a caricare un CSV o PDF invece.')), 45000)
-  );
-
-  const ocr = (async () => {
-    let worker;
-    try {
-      worker = await Tesseract.createWorker('ita+eng');
-      const { data: { text } } = await worker.recognize(file);
-      return extractFromText(text, true);
-    } finally {
-      if (worker) await worker.terminate().catch(() => {});
+  // PDF.js is too heavy for iOS PWA (causes crash/infinite hang)
+  // We convert PDF text extraction to a simple FileReader approach
+  try {
+    const pdfjsLib = await import('pdfjs-dist');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let allText = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      allText += content.items.map(item => item.str).join(' ') + '\n';
     }
-  })();
+    return extractFromText(allText, false);
+  } catch(e) {
+    throw new Error('Impossibile leggere il PDF su mobile. Esporta il file come CSV dalla tua banca e ricaricalo.');
+  }
+}
 
-  return Promise.race([ocr, timeout]);
+// ── Excel Parser ──
+export async function parseExcel(file) {
+  try {
+    const XLSX = await import('xlsx');
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const csvText = XLSX.utils.sheet_to_csv(worksheet);
+    const blob = new Blob([csvText], { type: 'text/csv' });
+    return parseCSV(blob);
+  } catch(e) {
+    throw new Error('Impossibile leggere il file Excel su mobile. Esporta come CSV e ricarica.');
+  }
+}
+
+// ── Image OCR - NOT recommended on mobile ──
+export async function parseImage(file) {
+  throw new Error(
+    'L\'analisi immagini non è supportata su mobile.\n\n' +
+    'Carica invece il file CSV o PDF esportato dalla tua banca.'
+  );
 }
 
 function extractFromText(allText, isImage = false) {
   const lines = allText.split('\n');
   const transactions = [];
-
   const patterns = [
     /(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})\s+(.+?)\s+(-?\d+[.,]\d{2})\s*€?/g,
     /(\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2})\s+(.+?)\s+(-?\d+[.,]\d{2})/g,
   ];
-
   for (const line of lines) {
     for (const pattern of patterns) {
       pattern.lastIndex = 0;
@@ -243,30 +245,8 @@ function extractFromText(allText, isImage = false) {
       }
     }
   }
-
-  if (transactions.length < 3) {
-    const textLower = allText.toLowerCase();
-    for (const kw of SUB_KEYWORDS) {
-      if (textLower.includes(kw)) {
-        const idx = textLower.indexOf(kw);
-        const nearby = allText.substring(Math.max(0, idx - 50), idx + kw.length + 50);
-        const amtMatch = nearby.match(/(\d+[.,]\d{2})/);
-        if (amtMatch) {
-          transactions.push({
-            description: kw.charAt(0).toUpperCase() + kw.slice(1),
-            amount: parseAmount(amtMatch[1]),
-            date: new Date(),
-          });
-        }
-      }
-    }
-  }
-
   if (transactions.length === 0) {
-    throw new Error(isImage
-      ? 'Nessuna transazione trovata nell\'immagine. Assicurati che lo screen sia nitido e contenga importi chiari.'
-      : 'Nessuna transazione trovata nel file. Assicurati che contenga date e importi chiari.');
+    throw new Error('Nessuna transazione trovata nel file.');
   }
-
   return findRecurring(transactions);
 }
