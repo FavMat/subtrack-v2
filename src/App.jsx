@@ -746,33 +746,45 @@ function MainApp() {
                       setPaywallOpen(true);
                     }
                   }}
-                  onChange={async (e) => {
+                  onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
                     setIsImporting(true);
-                    try {
-                      let results;
-                      const name = file.name.toLowerCase();
-                      if (name.endsWith('.pdf')) {
-                        results = await parsePDF(file);
-                      } else if (name.endsWith('.xlsx')) {
-                        results = await parseExcel(file);
-                      } else if (file.type.startsWith('image/')) {
-                        results = await parseImage(file);
-                      } else {
-                        results = await parseCSV(file);
-                      }
-                      if (results.length === 0) {
-                        alert(t('import_no_results'));
-                      } else {
-                        setImportResults(results);
-                      }
-                    } catch (err) {
-                      alert(err.message || 'Errore nel parsing del file');
-                    } finally {
+
+                    // Safety timeout: reset if stuck after 60s
+                    const safetyTimer = setTimeout(() => {
                       setIsImporting(false);
-                      e.target.value = '';
-                    }
+                      alert('Analisi troppo lenta. Riprova con un file più piccolo o carica un CSV invece di un\'immagine.');
+                    }, 60000);
+
+                    // Defer heavy work to next tick so UI renders "Analyzing..." first
+                    setTimeout(async () => {
+                      try {
+                        let results;
+                        const name = file.name.toLowerCase();
+                        if (name.endsWith('.pdf')) {
+                          results = await parsePDF(file);
+                        } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+                          results = await parseExcel(file);
+                        } else if (file.type.startsWith('image/')) {
+                          results = await parseImage(file);
+                        } else {
+                          results = await parseCSV(file);
+                        }
+                        clearTimeout(safetyTimer);
+                        if (results.length === 0) {
+                          alert(t('import_no_results'));
+                        } else {
+                          setImportResults(results);
+                        }
+                      } catch (err) {
+                        clearTimeout(safetyTimer);
+                        alert(err.message || 'Errore nel parsing del file');
+                      } finally {
+                        setIsImporting(false);
+                        e.target.value = '';
+                      }
+                    }, 50);
                   }}
                   style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 2 }}
                 />
