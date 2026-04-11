@@ -271,6 +271,16 @@ function MainApp() {
     const selected = importResults.filter(r => r.selected);
     if (!selected.length) { setImportResults(null); return; }
 
+    // Duplicate check
+    const duplicates = selected.filter(s =>
+      subs.some(existing => existing.name.toLowerCase().trim() === s.name.toLowerCase().trim())
+    );
+    if (duplicates.length > 0) {
+      const names = duplicates.map(d => d.name).join(', ');
+      const proceed = window.confirm(`⚠️ Attenzione: "${names}" ${duplicates.length > 1 ? 'sembrano già presenti' : 'sembra già presente'} nella tua lista.\n\nVuoi aggiungerli comunque?`);
+      if (!proceed) return;
+    }
+
     if (!isDemo) {
       const inserts = selected.map(s => {
         const nrDate = new Date(s.lastDate || new Date());
@@ -978,7 +988,7 @@ function MainApp() {
 
       {/* ══ IMPORT RESULTS MODAL ══ */}
       {importResults && (
-        <div className="modal" style={{ zIndex: 9999, backdropFilter: 'blur(4px)' }} onClick={() => setImportResults(null)}>
+        <div className="modal" style={{ zIndex: 9999 }} onClick={() => setImportResults(null)}>
           <div className="modal-content" style={{ animation: 'fadeUp 0.3s cubic-bezier(0.16,1,0.3,1)', padding: 0, maxWidth: '500px', width: '92%' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '1.5rem 1.5rem 0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -987,36 +997,53 @@ function MainApp() {
               </div>
               <button className="btn-icon" onClick={() => setImportResults(null)}><X size={20} /></button>
             </div>
-            <div style={{ padding: '0.5rem 1.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            <div style={{ padding: '0.3rem 1.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
               {t('import_found_desc')}
             </div>
-            <div style={{ padding: '1rem 1.5rem', maxHeight: '400px', overflowY: 'auto' }}>
-              {importResults.map((res, i) => (
-                <div key={res.id} onClick={(e) => {
-                  if (e.target.tagName !== 'INPUT') {
-                    const newRes = [...importResults];
-                    newRes[i].selected = !newRes[i].selected;
-                    setImportResults(newRes);
-                  }
-                }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem', background: res.selected ? 'rgba(99,102,241,0.08)' : 'var(--bg-input)', border: `1px solid ${res.selected ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '12px', marginBottom: '0.5rem', cursor: 'pointer', transition: 'all 0.2s' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <input type="checkbox" checked={res.selected} onChange={(e) => {
-                      const newRes = [...importResults];
-                      newRes[i].selected = e.target.checked;
-                      setImportResults(newRes);
-                    }} style={{ width: '18px', height: '18px', accentColor: 'var(--accent)' }} />
-                    <div style={{ fontSize: '1.5rem' }}>{getCatIcon(res.category)}</div>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{res.name}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Trovato {res.occurrences} volte</div>
+            {/* Select All bar */}
+            <div style={{ padding: '0.5rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-soft)', borderTop: '1px solid var(--border-soft)', margin: '0.4rem 0' }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                {importResults.filter(r => r.selected).length} / {importResults.length} selezionati
+              </span>
+              <button
+                onClick={() => {
+                  const allSelected = importResults.every(r => r.selected);
+                  setImportResults(importResults.map(r => ({ ...r, selected: !allSelected })));
+                }}
+                style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.25rem 0.7rem', fontSize: '0.78rem', fontWeight: 700, color: 'var(--accent)', cursor: 'pointer' }}
+              >
+                {importResults.every(r => r.selected) ? 'Deseleziona tutti' : 'Seleziona tutti'}
+              </button>
+            </div>
+            <div style={{ padding: '0.75rem 1.5rem', maxHeight: '360px', overflowY: 'auto' }}>
+              {importResults.map((res, i) => {
+                const isDuplicate = subs.some(existing => existing.name.toLowerCase().trim() === res.name.toLowerCase().trim());
+                return (
+                  <div key={res.id} onClick={(e) => {
+                    if (e.target.tagName !== 'INPUT') {
+                      setImportResults(prev => prev.map((r, idx) => idx === i ? { ...r, selected: !r.selected } : r));
+                    }
+                  }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem', background: res.selected ? 'rgba(99,102,241,0.08)' : 'var(--bg-input)', border: `1px solid ${res.selected ? 'var(--accent)' : isDuplicate ? '#f59e0b' : 'var(--border)'}`, borderRadius: '12px', marginBottom: '0.5rem', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <input type="checkbox" checked={res.selected} onChange={(e) => {
+                        setImportResults(prev => prev.map((r, idx) => idx === i ? { ...r, selected: e.target.checked } : r));
+                      }} style={{ width: '18px', height: '18px', accentColor: 'var(--accent)', flexShrink: 0 }} />
+                      <div style={{ fontSize: '1.5rem' }}>{getCatIcon(res.category)}</div>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          {res.name}
+                          {isDuplicate && <span style={{ background: '#fef3c7', color: '#b45309', fontSize: '0.6rem', fontWeight: 800, padding: '1px 6px', borderRadius: '4px', border: '1px solid #f59e0b80' }}>già presente</span>}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Trovato {res.occurrences} volte</div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 800, fontSize: '1rem', color: res.selected ? 'var(--accent)' : 'var(--text-primary)' }}>€{res.price.toFixed(2)}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>/{t('cycle_'+res.cycle)}</div>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 800, fontSize: '1rem', color: res.selected ? 'var(--accent)' : 'var(--text-primary)' }}>€{res.price.toFixed(2)}</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>/{t('cycle_'+res.cycle)}</div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div style={{ padding: '1rem 1.5rem 1.5rem', borderTop: '1px solid var(--border)' }}>
               <button onClick={handleAddImportedSubs} className="btn btn-primary" style={{ width: '100%', fontWeight: 800, padding: '0.85rem' }}>
@@ -1029,7 +1056,7 @@ function MainApp() {
 
       {/* ══ PAYWALL MODAL ══ */}
       {paywallOpen && (
-        <div className="modal" style={{ zIndex: 9999, backdropFilter: 'blur(4px)' }} onClick={() => setPaywallOpen(false)}>
+        <div className="modal" style={{ zIndex: 9999 }} onClick={() => setPaywallOpen(false)}>
           <div className="modal-content" style={{ animation: 'fadeUp 0.3s cubic-bezier(0.16,1,0.3,1)', padding: 0, maxWidth: '600px', width: '92%' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '1.5rem 1.5rem 0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>{t('paywall_title')}</h3>

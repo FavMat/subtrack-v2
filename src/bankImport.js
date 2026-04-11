@@ -124,7 +124,7 @@ function findRecurring(transactions) {
       category: detectCategory(name),
       occurrences: txs.length,
       lastDate: dates.length > 0 ? dates[dates.length - 1] : new Date(),
-      selected: true,
+      selected: false,
     });
   }
 
