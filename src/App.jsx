@@ -973,7 +973,7 @@ function MainApp() {
 
       {/* ══ IMPORT RESULTS MODAL ══ */}
       {importResults && (
-        <div className="modal-overlay" style={{ zIndex: 9999, backdropFilter: 'blur(4px)' }} onClick={() => setImportResults(null)}>
+        <div className="modal" style={{ zIndex: 9999, backdropFilter: 'blur(4px)' }} onClick={() => setImportResults(null)}>
           <div className="modal-content" style={{ animation: 'fadeUp 0.3s cubic-bezier(0.16,1,0.3,1)', padding: 0, maxWidth: '500px', width: '92%' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '1.5rem 1.5rem 0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -1024,7 +1024,7 @@ function MainApp() {
 
       {/* ══ PAYWALL MODAL ══ */}
       {paywallOpen && (
-        <div className="modal-overlay" style={{ zIndex: 9999, backdropFilter: 'blur(4px)' }} onClick={() => setPaywallOpen(false)}>
+        <div className="modal" style={{ zIndex: 9999, backdropFilter: 'blur(4px)' }} onClick={() => setPaywallOpen(false)}>
           <div className="modal-content" style={{ animation: 'fadeUp 0.3s cubic-bezier(0.16,1,0.3,1)', padding: 0, maxWidth: '600px', width: '92%' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '1.5rem 1.5rem 0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>{t('paywall_title')}</h3>
