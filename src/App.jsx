@@ -702,45 +702,50 @@ function MainApp() {
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>Carica Schermate, CSV, PDF o Excel ed estraiamo gli abbonamenti.</p>
                 </div>
               </div>
-              <input type="file" ref={fileInputRef} accept=".csv,.xlsx,.pdf,image/*" style={{ display: 'none' }}
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  if (!isPro && !isDemo) {
-                    setPaywallOpen(true);
-                    return;
-                  }
-                  setIsImporting(true);
-                  try {
-                    let results;
-                    const name = file.name.toLowerCase();
-                    if (name.endsWith('.pdf')) {
-                      results = await parsePDF(file);
-                    } else if (name.endsWith('.xlsx')) {
-                      results = await parseExcel(file);
-                    } else if (file.type.startsWith('image/')) {
-                      results = await parseImage(file);
-                    } else {
-                      results = await parseCSV(file);
+              <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--radius-sm)' }}>
+                <button disabled={isImporting} className="btn"
+                  style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)', color: '#fff', width: '100%', fontWeight: 700, border: 'none', position: 'relative', zIndex: 1, pointerEvents: 'none' }}>
+                  {isImporting ? <RefreshCw size={16} /> : <Upload size={16} />}
+                  {' '}{isImporting ? 'Analizzando (max ~10s)...' : 'Carica Documento o Screenshot'}
+                </button>
+                <input type="file" disabled={isImporting} accept=".csv,.xlsx,.pdf,image/*" 
+                  onClick={(e) => {
+                    if (!isPro && !isDemo) {
+                      e.preventDefault();
+                      setPaywallOpen(true);
                     }
-                    if (results.length === 0) {
-                      alert(t('import_no_results'));
-                    } else {
-                      setImportResults(results);
+                  }}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setIsImporting(true);
+                    try {
+                      let results;
+                      const name = file.name.toLowerCase();
+                      if (name.endsWith('.pdf')) {
+                        results = await parsePDF(file);
+                      } else if (name.endsWith('.xlsx')) {
+                        results = await parseExcel(file);
+                      } else if (file.type.startsWith('image/')) {
+                        results = await parseImage(file);
+                      } else {
+                        results = await parseCSV(file);
+                      }
+                      if (results.length === 0) {
+                        alert(t('import_no_results'));
+                      } else {
+                        setImportResults(results);
+                      }
+                    } catch (err) {
+                      alert(err.message || 'Errore nel parsing del file');
+                    } finally {
+                      setIsImporting(false);
+                      e.target.value = '';
                     }
-                  } catch (err) {
-                    alert(err.message || 'Errore nel parsing del file');
-                  } finally {
-                    setIsImporting(false);
-                    e.target.value = '';
-                  }
-                }}
-              />
-              <button onClick={() => isPro || isDemo ? fileInputRef.current?.click() : setPaywallOpen(true)} disabled={isImporting} className="btn"
-                style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)', color: '#fff', width: '100%', fontWeight: 700, border: 'none' }}>
-                {isImporting ? <RefreshCw size={16} className="spin" /> : <Upload size={16} />}
-                {' '}{isImporting ? 'Analizzando (può richiedere max ~10s)...' : 'Carica Documento o Screenshot'}
-              </button>
+                  }}
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 2 }}
+                />
+              </div>
               <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center', margin: '0.5rem 0 0' }}>Formati supportati: Foto/Screenshot, PDF, CSV, Excel</p>
             </div>
 
