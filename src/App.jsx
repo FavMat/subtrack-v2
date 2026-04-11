@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from './supabaseClient';
-import { Plus, LogOut, TrendingUp, LayoutDashboard, Settings, X, Bell, Trash2, Mail, ChevronDown, Lock } from 'lucide-react';
+import { Plus, LogOut, TrendingUp, LayoutDashboard, Settings, X, Bell, Trash2, Mail, ChevronDown, Lock, Building, RefreshCw, CheckCircle2, Upload, FileText } from 'lucide-react';
+import { usePlaidLink } from 'react-plaid-link';
 import { translations } from './translations';
+import { parseCSV, parsePDF, parseExcel, parseImage } from './bankImport';
 
 // ─── Emojis e Categorie ───────────────────────────────────────
 const EMOJIS = ['🎬', '⚡', '🏃', '💼', '🛍️', '🧘', '📦', '🍕', '✈️', '🚘', '🎮', '📚', '🎵', '🐕', '🏥', '🏦', '🎓', '💄', '🍷', '🎁'];
@@ -20,6 +22,14 @@ export default function App() {
   const [tab, setTab] = useState('dashboard');
   const [authMode, setAuthMode] = useState('login');
   const [authMsg, setAuthMsg] = useState({ text: '', type: '' });
+  const [authError, setAuthError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [linkToken, setLinkToken] = useState(null);
+  const [isSyncingBank, setIsSyncingBank] = useState(false);
+  const [bankConnected, setBankConnected] = useState(false);
+  const [importResults, setImportResults] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef(null);
 
   const [analyticsPeriod, setAnalyticsPeriod] = useState('monthly');
   const [alertPref, setAlertPref] = useState(() => localStorage.getItem('st_alert') || '1');
@@ -142,15 +152,86 @@ export default function App() {
     e.preventDefault();
     const fd = new FormData(e.target);
     const email = fd.get('email'), password = fd.get('password');
+    setAuthError('');
     if (authMode === 'signup') {
       const confirm = fd.get('confirm');
       if (password !== confirm) return setAuthMsg({ text: t('err_pass_match'), type: 'error' });
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) setAuthMsg({ text: error.message, type: 'error' });
-      else setAuthMsg({ text: t('confirm_email'), type: 'success' });
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) setAuthError(error.message);
+      else { setUser(data.user); setIsDemo(false); setPaywallOpen(true); }
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setAuthMsg({ text: error.message, type: 'error' });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) setAuthError(error.message);
+      else {
+        setUser(data.user); setIsDemo(false);
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+        const proStatus = profile?.is_pro || profile?.is_pro_manual;
+        setIsPro(!!proStatus);
+        if (!proStatus) setPaywallOpen(true);
+      }
+    }
+  };
+
+  const onPlaidSuccess = useCallback(async (public_token) => {
+    try {
+      if (!isDemo && public_token !== 'demo-fallback') {
+        const { error } = await supabase.functions.invoke('plaid-exchange-token', { body: { public_token } });
+        if (error) throw error;
+      }
+      setBankConnected(true);
+      setIsSyncingBank(false);
+    } catch (err) {
+      console.error('Plaid exchange err:', err);
+      setIsSyncingBank(false);
+      alert('Errore scambio token: ' + (err?.message || err));
+    }
+  }, [isDemo]);
+
+  const plaidConfig = {
+    token: linkToken,
+    onSuccess: (public_token, metadata) => onPlaidSuccess(public_token),
+    onExit: () => setIsSyncingBank(false),
+  };
+
+  const { open: openPlaid, ready: plaidReady } = usePlaidLink(plaidConfig);
+
+  useEffect(() => {
+    if (linkToken && plaidReady) {
+      openPlaid();
+    }
+  }, [linkToken, plaidReady, openPlaid]);
+
+  const startPlaidFlow = async () => {
+    if (!isPro) { setPaywallOpen(true); return; }
+
+    // In Demo mode simula connessione riuscita
+    if (isDemo) {
+      setIsSyncingBank(true);
+      setTimeout(() => { setBankConnected(true); setIsSyncingBank(false); }, 1500);
+      return;
+    }
+
+    setIsSyncingBank(true);
+    try {
+      const res = await supabase.functions.invoke('plaid-create-link', { body: { userId: user?.id } });
+      console.log('Plaid create-link response:', res);
+      
+      if (res.error) {
+        alert('Errore Plaid: ' + (res.error?.message || JSON.stringify(res.error)));
+        setIsSyncingBank(false);
+        return;
+      }
+      if (!res.data?.link_token) {
+        alert('Nessun link_token ricevuto: ' + JSON.stringify(res.data));
+        setIsSyncingBank(false);
+        return;
+      }
+      
+      setLinkToken(res.data.link_token);
+    } catch (e) {
+      console.error('Plaid flow error:', e);
+      alert('Eccezione Plaid: ' + e.message);
+      setIsSyncingBank(false);
     }
   };
 
@@ -162,6 +243,40 @@ export default function App() {
   const logout = async () => {
     if (isDemo) { setUser(null); setIsDemo(false); setSubs([]); return; }
     await supabase.auth.signOut();
+  };
+
+  const handleAddImportedSubs = async () => {
+    const selected = importResults.filter(r => r.selected);
+    if (!selected.length) { setImportResults(null); return; }
+
+    if (!isDemo) {
+      const inserts = selected.map(s => {
+        const nrDate = new Date(s.lastDate || new Date());
+        if (s.cycle === 'yearly') nrDate.setFullYear(nrDate.getFullYear() + 1);
+        else nrDate.setMonth(nrDate.getMonth() + 1);
+        
+        return {
+          user_id: user.id,
+          name: s.name,
+          price: s.price,
+          cycle: s.cycle,
+          category: s.category,
+          next_renewal: nrDate.toISOString().split('T')[0]
+        };
+      });
+      const { data, error } = await supabase.from('subscriptions').insert(inserts).select();
+      if (!error && data) {
+        setSubs(prev => [...prev, ...data].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)));
+      }
+    } else {
+      const newSubs = selected.map(s => ({
+        ...s,
+        created_at: new Date().toISOString()
+      }));
+      setSubs(prev => [...prev, ...newSubs]);
+    }
+    setImportResults(null);
+    setTab('dashboard');
   };
 
   const handleSave = async (e) => {
@@ -295,8 +410,18 @@ export default function App() {
         </div>
         <form onSubmit={handleAuth}>
           <div className="input-group"><label>{t('email_label')}</label><input type="email" name="email" required /></div>
-          <div className="input-group"><label>{t('password_label')}</label><input type="password" name="password" required /></div>
+          <div className="input-group">
+            <label>{t('password_label')}</label>
+            <div style={{ position: 'relative' }}>
+              <input type={showPassword ? 'text' : 'password'} name="password" required />
+              <button type="button" onClick={() => setShowPassword(p => !p)}
+                style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '4px' }}>
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
+          </div>
           {authMode === 'signup' && <div className="input-group"><label>{t('confirm_password_label')}</label><input type="password" name="confirm" required /></div>}
+          {authError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: '0.5rem 0 0' }}>{authError}</p>}
           {authMsg.text && <p className={`auth-message ${authMsg.type}`}>{authMsg.text}</p>}
           <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem' }}>{authMode === 'login' ? t('login_btn') : t('signup_btn')}</button>
         </form>
@@ -502,12 +627,18 @@ export default function App() {
             <h3 style={{ marginBottom: '1.25rem', fontSize: '1.3rem', fontWeight: 800 }}>{t('settings_title')}</h3>
             <p className="settings-section-title">{t('account_section')}</p>
             <div className="settings-row"><span className="settings-row-label">{t('email_row')}</span><span className="settings-row-value">{user.email}</span></div>
-            <div className="settings-row"><span className="settings-row-label">{t('plan_row')}</span><span className="settings-row-value" style={{ color: isPro ? 'var(--accent)' : undefined }}>{isDemo ? t('demo_plan') : isPro ? t('premium_plan') : t('free_plan')}</span></div>
+            <div className="settings-row" onClick={() => setPaywallOpen(true)}
+              style={{ cursor: 'pointer' }}>
+              <span className="settings-row-label">{t('plan_row')}</span>
+              <span className="settings-row-value" style={{ color: isPro ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                {isDemo ? t('demo_plan') : isPro ? `★ ${t('premium_plan')}` : `${t('free_plan')} →`}
+              </span>
+            </div>
 
             <p className="settings-section-title" style={{ marginTop: '1.5rem' }}>{t('language_section')}</p>
             <div className="settings-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span className="settings-row-label">Lingua Setup</span>
+                <span className="settings-row-label">{t('language_label')}</span>
               </div>
               <select value={lang} onChange={(e) => setLang(e.target.value)} style={{ padding: '0.3rem', borderRadius: '4px', background: 'var(--bg-input)', border: '1px solid var(--border)', fontSize: '0.85rem' }}>
                 <option value="it">Italiano</option>
@@ -534,6 +665,94 @@ export default function App() {
                 </div>
               </>
             )}
+
+            {/* Bank Import */}
+            <div className="glass-panel" style={{ marginTop: '1.5rem', padding: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.6rem' }}>
+                <div style={{ background: 'rgba(99,102,241,0.06)', padding: '0.5rem', borderRadius: '8px', color: 'var(--accent)' }}>
+                  <FileText size={18} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <h4 style={{ fontSize: '0.9rem', fontWeight: 800, margin: 0 }}>Importo Smart 🪄</h4>
+                    {!isPro && <span style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-2))', color: '#fff', fontSize: '0.55rem', fontWeight: 800, padding: '0.1rem 0.35rem', borderRadius: '4px' }}>★ PRO</span>}
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>Carica Schermate, CSV, PDF o Excel ed estraiamo gli abbonamenti.</p>
+                </div>
+              </div>
+              <input type="file" ref={fileInputRef} accept=".csv,.xlsx,.pdf,image/*" style={{ display: 'none' }}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (!isPro && !isDemo) {
+                    setPaywallOpen(true);
+                    return;
+                  }
+                  setIsImporting(true);
+                  try {
+                    let results;
+                    const name = file.name.toLowerCase();
+                    if (name.endsWith('.pdf')) {
+                      results = await parsePDF(file);
+                    } else if (name.endsWith('.xlsx')) {
+                      results = await parseExcel(file);
+                    } else if (file.type.startsWith('image/')) {
+                      results = await parseImage(file);
+                    } else {
+                      results = await parseCSV(file);
+                    }
+                    if (results.length === 0) {
+                      alert(t('import_no_results'));
+                    } else {
+                      setImportResults(results);
+                    }
+                  } catch (err) {
+                    alert(err.message || 'Errore nel parsing del file');
+                  } finally {
+                    setIsImporting(false);
+                    e.target.value = '';
+                  }
+                }}
+              />
+              <button onClick={() => isPro || isDemo ? fileInputRef.current?.click() : setPaywallOpen(true)} disabled={isImporting} className="btn"
+                style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)', color: '#fff', width: '100%', fontWeight: 700, border: 'none' }}>
+                {isImporting ? <RefreshCw size={16} className="spin" /> : <Upload size={16} />}
+                {' '}{isImporting ? 'Analizzando (può richiedere max ~10s)...' : 'Carica Documento o Screenshot'}
+              </button>
+              <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center', margin: '0.5rem 0 0' }}>Formati supportati: Foto/Screenshot, PDF, CSV, Excel</p>
+            </div>
+
+            {/* Bank Sync */}
+            <div className="glass-panel" style={{ marginTop: '1.5rem', padding: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.6rem' }}>
+                <div style={{ background: 'rgba(99,102,241,0.06)', padding: '0.5rem', borderRadius: '8px', color: 'var(--accent)' }}>
+                  <Building size={18} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <h4 style={{ fontSize: '0.9rem', fontWeight: 800, margin: 0 }}>{t('bank_sync_title')}</h4>
+                    <span style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)', color: '#fff', fontSize: '0.55rem', fontWeight: 800, padding: '2px 8px', borderRadius: '999px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Coming Soon</span>
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>{t('bank_sync_desc')}</p>
+                </div>
+              </div>
+              <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '8px', padding: '0.75rem', marginBottom: '0.85rem' }}>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                  {t('bank_privacy')}
+                </p>
+              </div>
+              {bankConnected ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(16,185,129,0.1)', color: '#10b981', padding: '0.65rem', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 700 }}>
+                  <CheckCircle2 size={16} /> {t('bank_connected_status')}
+                </div>
+              ) : (
+                <button onClick={startPlaidFlow} disabled={isSyncingBank} className="btn"
+                  style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', width: '100%' }}>
+                  {isSyncingBank ? <RefreshCw size={16} className="spin" /> : <Building size={16} />}
+                  {' '}{isSyncingBank ? t('syncing') : t('connect_bank')}
+                </button>
+              )}
+            </div>
 
             <button onClick={logout} className="btn btn-danger" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '2.5rem' }}>
               <LogOut size={16} style={{ marginRight: '6px' }} /> {t('logout')}
@@ -730,35 +949,96 @@ export default function App() {
         </div>
       )}
 
+      {/* ══ IMPORT RESULTS MODAL ══ */}
+      {importResults && (
+        <div className="modal-overlay" style={{ zIndex: 9999, backdropFilter: 'blur(4px)' }} onClick={() => setImportResults(null)}>
+          <div className="modal-content" style={{ animation: 'fadeUp 0.3s cubic-bezier(0.16,1,0.3,1)', padding: 0, maxWidth: '500px', width: '92%' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '1.5rem 1.5rem 0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <CheckCircle2 size={24} color="var(--accent)" />
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>{t('import_found_title')}</h3>
+              </div>
+              <button className="btn-icon" onClick={() => setImportResults(null)}><X size={20} /></button>
+            </div>
+            <div style={{ padding: '0.5rem 1.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              {t('import_found_desc')}
+            </div>
+            <div style={{ padding: '1rem 1.5rem', maxHeight: '400px', overflowY: 'auto' }}>
+              {importResults.map((res, i) => (
+                <div key={res.id} onClick={(e) => {
+                  if (e.target.tagName !== 'INPUT') {
+                    const newRes = [...importResults];
+                    newRes[i].selected = !newRes[i].selected;
+                    setImportResults(newRes);
+                  }
+                }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem', background: res.selected ? 'rgba(99,102,241,0.08)' : 'var(--bg-input)', border: `1px solid ${res.selected ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '12px', marginBottom: '0.5rem', cursor: 'pointer', transition: 'all 0.2s' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <input type="checkbox" checked={res.selected} onChange={(e) => {
+                      const newRes = [...importResults];
+                      newRes[i].selected = e.target.checked;
+                      setImportResults(newRes);
+                    }} style={{ width: '18px', height: '18px', accentColor: 'var(--accent)' }} />
+                    <div style={{ fontSize: '1.5rem' }}>{getCatIcon(res.category)}</div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{res.name}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Trovato {res.occurrences} volte</div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: res.selected ? 'var(--accent)' : 'var(--text-primary)' }}>€{res.price.toFixed(2)}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>/{t('cycle_'+res.cycle)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: '1rem 1.5rem 1.5rem', borderTop: '1px solid var(--border)' }}>
+              <button onClick={handleAddImportedSubs} className="btn btn-primary" style={{ width: '100%', fontWeight: 800, padding: '0.85rem' }}>
+                <Plus size={18} /> {t('import_add_selected')} ({importResults.filter(r => r.selected).length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ══ PAYWALL MODAL ══ */}
       {paywallOpen && (
-        <div className="modal-overlay" style={{ zIndex: 9999 }} onClick={() => setPaywallOpen(false)}>
-          <div className="modal-content paywall-modal" style={{ padding: '0', overflow: 'hidden', animation: 'fadeUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-2))', padding: '1.5rem', color: '#fff', position: 'relative', textAlign: 'center' }}>
-              <button className="btn-icon" onClick={() => setPaywallOpen(false)} style={{ position: 'absolute', top: '1rem', right: '1rem', color: '#fff', background: 'rgba(255,255,255,0.2)', width: '32px', height: '32px' }}><X size={18} /></button>
-              <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🚀</div>
-              <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.5rem', lineHeight: 1.2 }}>{t('pro_paywall_title')}</h2>
-              <p style={{ fontSize: '0.9rem', opacity: 0.9, lineHeight: 1.4, margin: '0 auto', maxWidth: '280px' }}>{t('pro_paywall_subtitle')}</p>
+        <div className="modal-overlay" style={{ zIndex: 9999, backdropFilter: 'blur(4px)' }} onClick={() => setPaywallOpen(false)}>
+          <div className="modal-content" style={{ animation: 'fadeUp 0.3s cubic-bezier(0.16,1,0.3,1)', padding: 0, maxWidth: '600px', width: '92%' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '1.5rem 1.5rem 0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>{t('paywall_title')}</h3>
+              <button className="btn-icon" onClick={() => setPaywallOpen(false)}><X size={20} /></button>
             </div>
-            <div style={{ padding: '1.5rem' }}>
-              <div style={{ background: 'var(--bg-input)', padding: '1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.25rem', border: '1px solid var(--border-soft)' }}>
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4, textAlign: 'center' }}>
-                  {t('pro_features_free')}
-                </p>
+            <div style={{ padding: '1rem 1.5rem 1.5rem', display: 'flex', flexDirection: window.innerWidth > 520 ? 'row' : 'column', gap: '1rem' }}>
+              <div style={{ flex: 1, padding: '1.25rem', border: '1px solid var(--border)', borderRadius: '12px', background: 'var(--bg-input)' }}>
+                <h4 style={{ margin: '0 0 0.4rem', color: 'var(--text-secondary)', fontWeight: 700 }}>{t('paywall_basic_name')}</h4>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '1.25rem' }}>{t('paywall_basic_price')}</div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.85rem' }}>
+                  <li style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><CheckCircle2 size={14} color="var(--text-secondary)" /> {t('paywall_basic_f1')}</li>
+                  <li style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><CheckCircle2 size={14} color="var(--text-secondary)" /> {t('paywall_basic_f2')}</li>
+                  <li style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><CheckCircle2 size={14} color="var(--text-secondary)" /> {t('paywall_basic_f3')}</li>
+                  <li style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', opacity: 0.35 }}><X size={14} /> {t('paywall_basic_no1')}</li>
+                  <li style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', opacity: 0.35 }}><X size={14} /> {t('paywall_basic_no2')}</li>
+                  <li style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', opacity: 0.35 }}><X size={14} /> {t('paywall_basic_no3')}</li>
+                </ul>
+                <div style={{ marginTop: '1.25rem', padding: '0.65rem', textAlign: 'center', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('paywall_basic_current')}</div>
               </div>
-
-              <h4 style={{ fontSize: '0.9rem', fontWeight: 800, marginBottom: '1rem', color: 'var(--text-primary)', textAlign: 'center' }}>{t('pro_features_premium')}</h4>
-              
-              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1.5rem 0', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                <li style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}><span style={{ color: 'var(--success)', fontSize: '1.2rem', lineHeight: 1 }}>✓</span> <span>{t('pro_feat_unlimited')}</span></li>
-                <li style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}><span style={{ color: 'var(--success)', fontSize: '1.2rem', lineHeight: 1 }}>✓</span> <span>{t('pro_feat_shared')}</span></li>
-                <li style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}><span style={{ color: 'var(--success)', fontSize: '1.2rem', lineHeight: 1 }}>✓</span> <span>{t('pro_feat_reminders')}</span></li>
-                <li style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}><span style={{ color: 'var(--success)', fontSize: '1.2rem', lineHeight: 1 }}>✓</span> <span>{t('pro_feat_cats')}</span></li>
-              </ul>
-              
-              <button onClick={() => { setPaywallOpen(false); handleUpgrade(); }} className="btn btn-primary" style={{ width: '100%', padding: '0.9rem', fontSize: '1.05rem', fontWeight: 700, background: 'linear-gradient(135deg, var(--accent), var(--accent-2))', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
-                {t('pro_cta_btn')} €9.99/anno
-              </button>
+              <div style={{ flex: 1, padding: '1.25rem', border: '2px solid var(--accent)', borderRadius: '12px', background: 'linear-gradient(145deg,rgba(99,102,241,0.08),rgba(168,85,247,0.05))', position: 'relative' }}>
+                <div style={{ position: 'absolute', top: '-10px', right: '14px', background: 'linear-gradient(to right,var(--accent),#a855f7)', color: '#fff', fontSize: '0.65rem', fontWeight: 800, padding: '3px 10px', borderRadius: '12px', textTransform: 'uppercase' }}>{t('paywall_pro_badge')}</div>
+                <h4 style={{ margin: '0 0 0.4rem', color: 'var(--accent)', fontWeight: 800 }}>PRO</h4>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '1.25rem' }}>1.99€ <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 400 }}>{t('paywall_pro_year')}</span></div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.85rem' }}>
+                  <li style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><CheckCircle2 size={14} color="var(--accent)" /><strong>{t('paywall_pro_f0')}</strong></li>
+                  <li style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><CheckCircle2 size={14} color="var(--accent)" /> {t('paywall_pro_f1')}</li>
+                  <li style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><CheckCircle2 size={14} color="var(--accent)" /> {t('paywall_pro_f2')}</li>
+                  <li style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><CheckCircle2 size={14} color="var(--accent)" /> {t('paywall_pro_f3')}</li>
+                  <li style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><CheckCircle2 size={14} color="var(--accent)" /> {t('paywall_pro_f4')}</li>
+                  <li style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><CheckCircle2 size={14} color="var(--accent)" /> {t('paywall_pro_f5')}</li>
+                </ul>
+                <button onClick={() => { window.location.href = `https://buy.stripe.com/test_00g17LgRjci48jS8ww?client_reference_id=${user?.id}`; }}
+                  className="btn btn-primary" style={{ marginTop: '1.25rem', width: '100%', fontWeight: 800, boxShadow: '0 4px 15px rgba(99,102,241,0.3)' }}>
+                  {t('paywall_pro_cta')}
+                </button>
+              </div>
             </div>
           </div>
         </div>
