@@ -703,12 +703,12 @@ function MainApp() {
                 </div>
               </div>
               <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--radius-sm)' }}>
-                <button disabled={isImporting} className="btn"
+                <button className="btn"
                   style={{ background: 'linear-gradient(135deg, var(--accent), #a855f7)', color: '#fff', width: '100%', fontWeight: 700, border: 'none', position: 'relative', zIndex: 1, pointerEvents: 'none' }}>
                   {isImporting ? <RefreshCw size={16} /> : <Upload size={16} />}
                   {' '}{isImporting ? 'Analizzando (max ~10s)...' : 'Carica Documento o Screenshot'}
                 </button>
-                <input type="file" disabled={isImporting} accept=".csv,.xlsx,.pdf,image/*" 
+                <input type="file" accept=".csv,.xlsx,.pdf,image/*" 
                   onClick={(e) => {
                     if (!isPro && !isDemo) {
                       e.preventDefault();
