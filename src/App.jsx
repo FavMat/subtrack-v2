@@ -13,7 +13,29 @@ function addDays(n) {
   return d.toISOString().split('T')[0];
 }
 
-export default function App() {
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, info: null };
+  }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, info) { this.setState({ info }); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '20px', background: '#fff', color: '#000', minHeight: '100vh', overflow: 'auto' }}>
+          <h2 style={{ color: 'black' }}>UI Crash! (Cattura errore)</h2>
+          <pre style={{ color: 'red', fontSize: '12px', whiteSpace: 'pre-wrap' }}>{this.state.error?.toString()}</pre>
+          <pre style={{ color: 'blue', fontSize: '10px', whiteSpace: 'pre-wrap' }}>{this.state.info?.componentStack}</pre>
+          <button onClick={() => window.location.reload()} style={{ padding: '10px', marginTop: '20px', background: '#e0e0e0', color: 'black' }}>Ricarica l'app</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function MainApp() {
   const [user, setUser] = useState(null);
   const [isDemo, setIsDemo] = useState(false);
   const [isPro, setIsPro] = useState(false);
@@ -1050,5 +1072,13 @@ export default function App() {
         <button className={`tab-item ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}><Settings size={20} /><span>{t('tab_settings')}</span></button>
       </nav>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <MainApp />
+    </ErrorBoundary>
   );
 }
