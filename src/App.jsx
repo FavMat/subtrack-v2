@@ -674,14 +674,14 @@ function MainApp() {
               <button className={analyticsPeriod === 'yearly' ? 'active' : ''} onClick={() => setAnalyticsPeriod('yearly')}>{t('btn_yearly')}</button>
             </div>
 
-            <div className="glass-panel" style={{ padding: '2rem 1rem', marginBottom: '1.25rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <div className="glass-panel" style={{ padding: '2rem 1rem', marginBottom: '1.25rem', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '260px' }}>
               <div className="pie-chart-container">
                 <div className="pie-chart" style={{ background: conicGradientStr }} />
                 <div className="pie-center-hole">
-                  <p style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center', lineHeight: 1.2 }}>
+                  <p style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
                     {analyticsPeriod === 'yearly' ? t('total_yearly') : t('total_monthly')}
                   </p>
-                  <p style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--text-primary)', marginTop: '0.1rem' }}>€{currentTotalAmount.toFixed(2)}</p>
+                  <p style={{ fontSize: 'clamp(0.95rem, 3.5vw, 1.25rem)', fontWeight: 900, color: 'var(--text-primary)', marginTop: '0.2rem', textAlign: 'center', lineHeight: 1.1 }}>€{currentTotalAmount.toFixed(2)}</p>
                 </div>
               </div>
             </div>
