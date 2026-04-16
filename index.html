@@ -27,38 +27,60 @@
         });
       }
 
-      // ── iOS PWA white-screen fix after file picker ──
-      // When a PWA is in standalone mode, opening the native file picker
-      // puts the WKWebView to sleep. On resume, the GPU compositing layer
-      // is lost, causing a permanent white screen. This forces a repaint.
+      // ── Global error catcher (shows on screen for mobile debugging) ──
       (function() {
+        function showDebugOverlay(msg) {
+          // Only show if no React content is visible (helps diagnose white screens)
+          var overlay = document.getElementById('debug-overlay');
+          if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'debug-overlay';
+            overlay.style.cssText = [
+              'position:fixed', 'bottom:0', 'left:0', 'right:0',
+              'background:rgba(220,0,0,0.92)', 'color:#fff',
+              'font-size:12px', 'font-family:monospace',
+              'padding:12px', 'z-index:99999',
+              'max-height:50vh', 'overflow-y:auto',
+              'white-space:pre-wrap', 'word-break:break-all'
+            ].join(';');
+            document.body.appendChild(overlay);
+          }
+          overlay.textContent += '\n[' + new Date().toISOString().slice(11,19) + '] ' + msg;
+        }
+
+        window.addEventListener('error', function(e) {
+          showDebugOverlay('JS ERROR: ' + (e.message || e) + '\n  @ ' + e.filename + ':' + e.lineno);
+        });
+
+        window.addEventListener('unhandledrejection', function(e) {
+          showDebugOverlay('UNHANDLED PROMISE: ' + (e.reason?.message || e.reason || e));
+        });
+
+        // iOS PWA: force repaint when returning from file picker
         function forceRepaint() {
           var root = document.getElementById('root');
           if (!root) return;
           root.style.opacity = '0.999';
           requestAnimationFrame(function() {
-            requestAnimationFrame(function() {
-              root.style.opacity = '';
-            });
+            requestAnimationFrame(function() { root.style.opacity = ''; });
           });
         }
 
-        // Fires when returning from any external context (file picker, share sheet, etc.)
         window.addEventListener('pageshow', function(e) {
+          showDebugOverlay('pageshow fired, persisted=' + e.persisted);
           forceRepaint();
-          // If page was restored from bfcache, full reload is needed
-          if (e.persisted) {
-            window.location.reload();
-          }
+          if (e.persisted) { window.location.reload(); }
         });
 
         document.addEventListener('visibilitychange', function() {
-          if (!document.hidden) {
-            forceRepaint();
-          }
+          showDebugOverlay('visibility: ' + (document.hidden ? 'hidden' : 'visible'));
+          if (!document.hidden) forceRepaint();
         });
 
-        window.addEventListener('focus', forceRepaint);
+        window.addEventListener('focus', function() {
+          showDebugOverlay('window focus');
+          forceRepaint();
+        });
       })();
     </script>
   </body>

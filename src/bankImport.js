@@ -121,13 +121,32 @@ function findRecurring(transactions) {
   return results.sort((a, b) => b.price - a.price);
 }
 
+// ── iOS Safe File Readers ──
+// Blob.text() e Blob.arrayBuffer() spesso "congelano" la PWA silenziosamente ("si addormenta")
+// FileReader è più affidabile e rilascia i callback correttamente anche con RAM sotto stress.
+async function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Errore di sistema nella lettura del file (iOS issue). Riprova.'));
+    reader.readAsText(file);
+  });
+}
+
+async function readFileAsArrayBuffer(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Errore nella lettura dei dati del file.'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
 // ── CSV Parser ──
-// Reads the file as text first (avoids iOS FileReader WebView issues),
-// then parses synchronously so there are no async bridge issues.
 export async function parseCSV(file) {
-  const text = await file.text();
+  const text = await readFileAsText(file); // Risolve il freeze su iOS PWA
   if (!text || text.trim().length === 0) {
-    throw new Error('CSV vuoto o non leggibile');
+    throw new Error('CSV vuoto o illeggibile. Prova con la funzione Incolla Testo o ritenta.');
   }
 
   return new Promise((resolve, reject) => {
@@ -151,10 +170,9 @@ export async function parseCSV(file) {
             /date|data|datum|fecha|started|completed|valuta/i.test(c)
           );
 
+          // Se non troviamo colonne, proviamo ad unire tutti i campi come testo brutto
           if (!descCol) {
-            return reject(new Error(
-              'Colonna descrizione non trovata.\nColonne: ' + Object.keys(rows[0]).join(', ')
-            ));
+            return resolve(extractFromText(text, false));
           }
 
           const transactions = rows
@@ -166,7 +184,7 @@ export async function parseCSV(file) {
             .filter(tx => tx.description && tx.amount > 0);
 
           if (transactions.length === 0) {
-            return reject(new Error('Nessuna transazione con importo valido trovata.'));
+            return resolve(extractFromText(text, false)); // Fallback a Regex
           }
 
           resolve(findRecurring(transactions));
@@ -179,15 +197,16 @@ export async function parseCSV(file) {
   });
 }
 
-// ── PDF Parser - NOT supported on mobile, show clear message ──
+// ── PDF Parser ──
 export async function parsePDF(file) {
-  // PDF.js is too heavy for iOS PWA (causes crash/infinite hang)
-  // We convert PDF text extraction to a simple FileReader approach
   try {
     const pdfjsLib = await import('pdfjs-dist');
     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-    const arrayBuffer = await file.arrayBuffer();
+    
+    // Usiamo il nostro FileReader asincrono invece di file.arrayBuffer()
+    const arrayBuffer = await readFileAsArrayBuffer(file);
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    
     let allText = '';
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
@@ -196,7 +215,7 @@ export async function parsePDF(file) {
     }
     return extractFromText(allText, false);
   } catch(e) {
-    throw new Error('Impossibile leggere il PDF su mobile. Esporta il file come CSV dalla tua banca e ricaricalo.');
+    throw new Error('Errore estrazione PDF (' + e.message + '). Riprova con un CSV o uno Screenshot.');
   }
 }
 
@@ -204,49 +223,125 @@ export async function parsePDF(file) {
 export async function parseExcel(file) {
   try {
     const XLSX = await import('xlsx');
-    const arrayBuffer = await file.arrayBuffer();
+    const arrayBuffer = await readFileAsArrayBuffer(file);
     const workbook = XLSX.read(arrayBuffer, { type: 'array' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const csvText = XLSX.utils.sheet_to_csv(worksheet);
+    
     const blob = new Blob([csvText], { type: 'text/csv' });
     return parseCSV(blob);
   } catch(e) {
-    throw new Error('Impossibile leggere il file Excel su mobile. Esporta come CSV e ricarica.');
+    throw new Error('Errore durante la lettura del file Excel: ' + e.message);
   }
 }
 
-// ── Image OCR - NOT recommended on mobile ──
+// ── Image OCR (Implementazione Tesseract) ──
+async function downscaleImage(file, maxWidth = 1200) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+      }
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Converte in blob per abbassare il footprint di memoria
+      canvas.toBlob((blob) => {
+        if (!blob) reject(new Error('Conversione immagine fallita'));
+        else resolve(blob);
+      }, 'image/jpeg', 0.85);
+    };
+    
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Errore caricamento immagine per il ridimensionamento.'));
+    };
+    
+    img.src = url;
+  });
+}
+
 export async function parseImage(file) {
-  throw new Error(
-    'L\'analisi immagini non è supportata su mobile.\n\n' +
-    'Carica invece il file CSV o PDF esportato dalla tua banca.'
-  );
+  try {
+    // Importazione dinamica per non pesare sul caricamento base dell'app
+    const Tesseract = (await import('tesseract.js')).default || await import('tesseract.js');
+    
+    // DOWN-SCALE: Riduciamo la foto a max 1200px per evitare il crash OOM (Out Of Memory) su iOS Safari PWA!
+    const resizedBlob = await downscaleImage(file, 1200);
+    
+    // Url temporaneo per liberare memoria velocemente
+    const imgUrl = URL.createObjectURL(resizedBlob);
+    
+    // Inizializza l'OCR con la lingua Italiana
+    const worker = await Tesseract.createWorker('ita');
+    const ret = await worker.recognize(imgUrl);
+    
+    await worker.terminate();
+    URL.revokeObjectURL(imgUrl);
+    
+    if (!ret.data || !ret.data.text) {
+      throw new Error('Screenshot non decifrabile (testo insufficiente).');
+    }
+    
+    return extractFromText(ret.data.text, true);
+  } catch (e) {
+    throw new Error('Errore motore OCR: ' + e.message + '. Ritenta la foto o seleziona un file più piccolo.');
+  }
 }
 
 function extractFromText(allText, isImage = false) {
-  const lines = allText.split('\n');
+  // Pulisce piccoli errori classici degli screenshot / OCR
+  let cleanedText = allText;
+  if (isImage) {
+    cleanedText = cleanedText.replace(/€/gi, ' ');
+    cleanedText = cleanedText.replace(/\b([a-z])\s+([a-z])\b/gi, '$1$2'); // Unisce lettere spaiate
+  }
+
+  const lines = cleanedText.split('\n');
   const transactions = [];
+  
+  // Aggiunti pattern più larghi per supportare l'OCR
   const patterns = [
-    /(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})\s+(.+?)\s+(-?\d+[.,]\d{2})\s*€?/g,
-    /(\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2})\s+(.+?)\s+(-?\d+[.,]\d{2})/g,
+    // Data (gg/mm/aa) - Descrizione - Importo (12,34)
+    /(\d{1,2}[\/\-\.\s]{1,4}\d{1,2}[\/\-\.\s]{1,4}\d{2,4})\s+(.+?)\s+(-?\d+[.,]\d{2})\s*€?/g,
+    // Formati alternativi
+    /(\d{4}[\/\-\.\s]{1,4}\d{1,2}[\/\-\.\s]{1,4}\d{1,2})\s+(.+?)\s+(-?\d+[.,]\d{2})/g,
+    // Senza spazio vicino all'importo (errore tipico OCR)
+    /(\d{1,2}[\/\-\.\s]{1,4}\d{1,2})\s+(.+?)(\d+[.,]\d{2})/g,
   ];
+
   for (const line of lines) {
     for (const pattern of patterns) {
       pattern.lastIndex = 0;
       let match;
       while ((match = pattern.exec(line)) !== null) {
         const desc = match[2].trim();
-        const amount = parseAmount(match[3]);
-        const date = parseDate(match[1]);
+        const amountStr = match[3] || match[4]; // Dipende dal pattern
+        const amount = parseAmount(amountStr);
+        let date = parseDate(match[1].replace(/\s/g, '')); // Tolti gli spazzi errati delle date OCR
+        
         if (desc && amount > 0 && desc.length > 2) {
           transactions.push({ description: desc, amount, date });
         }
       }
     }
   }
+
   if (transactions.length === 0) {
-    throw new Error('Nessuna transazione trovata nel file.');
+    throw new Error('Nessuna transazione identificata nel documento/immagine.');
   }
+  
   return findRecurring(transactions);
 }
