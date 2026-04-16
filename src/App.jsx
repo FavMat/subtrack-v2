@@ -487,6 +487,63 @@ function MainApp() {
   // ══════════════════════════════════════════════════════════
   // UI RENDER
   // ══════════════════════════════════════════════════════════
+
+  // ── Reusable install banner + iOS modal (shown across all screens) ──
+  const installBannerJSX = showInstallBanner ? (
+    <div style={{
+      position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+      width: '100%', maxWidth: 'var(--max-width)',
+      background: 'linear-gradient(135deg, #6366F1, #a855f7)',
+      color: '#fff', padding: '0.85rem 1.25rem',
+      display: 'flex', alignItems: 'center', gap: '0.75rem',
+      zIndex: 200, boxShadow: '0 -4px 20px rgba(99,102,241,0.35)',
+      animation: 'slideUp 0.4s cubic-bezier(0.16,1,0.3,1)',
+    }}>
+      <img src="/icon-192.png" alt="" style={{ width: '36px', height: '36px', borderRadius: '8px', flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontWeight: 800, fontSize: '0.85rem', margin: 0 }}>
+          {isIos ? '📲 Aggiungi SubTrack alla Home' : '📲 Installa SubTrack'}
+        </p>
+        <p style={{ fontSize: '0.7rem', opacity: 0.85, margin: 0 }}>
+          {isIos ? 'Tap Condividi → Aggiungi a schermata Home' : 'Gratis • 1 tap • Nessun App Store'}
+        </p>
+      </div>
+      <button onClick={handleInstallClick}
+        style={{ background: '#fff', color: '#6366F1', border: 'none', borderRadius: '8px', padding: '0.45rem 0.9rem', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer', flexShrink: 0 }}>
+        {isIos ? 'Come?' : 'Installa'}
+      </button>
+      <button onClick={dismissInstallBanner}
+        style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, fontSize: '1.1rem' }}>×</button>
+    </div>
+  ) : null;
+
+  const iosModalJSX = showIosModal ? (
+    <div className="modal" onClick={() => setShowIosModal(false)}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ textAlign: 'center' }}>
+        <div className="modal-handle" />
+        <h3 style={{ marginBottom: '0.25rem' }}>📲 Aggiungi alla Home</h3>
+        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>Segui questi 2 passi per installare SubTrack</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'var(--bg-input)', padding: '1rem', borderRadius: '12px' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366F1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', flexShrink: 0 }}>1</div>
+            <div style={{ textAlign: 'left' }}>
+              <p style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '2px' }}>Tocca <strong>Condividi</strong> ⬆️</p>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Il pulsante in basso al centro di Safari</p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'var(--bg-input)', padding: '1rem', borderRadius: '12px' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366F1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', flexShrink: 0 }}>2</div>
+            <div style={{ textAlign: 'left' }}>
+              <p style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '2px' }}>Tocca <strong>"Aggiungi a Schermata Home"</strong></p>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Scorri in basso nel menu condivisione</p>
+            </div>
+          </div>
+        </div>
+        <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => setShowIosModal(false)}>Ho capito ✓</button>
+      </div>
+    </div>
+  ) : null;
+
   if (!user) return (
     <div className="app-container"><div className="auth-screen"><div className="auth-content">
       <h1 className="logo-small" style={{ fontSize: '2.6rem', textAlign: 'center', margin: '0 0 -5px' }}>SubTrack</h1>
@@ -535,7 +592,10 @@ function MainApp() {
         </form>
       </div>
       <button className="btn btn-outline" style={{ marginTop: '0.75rem' }} onClick={startDemo}>{t('demo_btn')}</button>
-    </div></div></div>
+    </div></div>
+      {installBannerJSX}
+      {iosModalJSX}
+    </div>
   );
 
   // If user is resetting password, block the UI with a modal
@@ -1239,71 +1299,8 @@ function MainApp() {
         </div>
       )}
 
-      {/* ── Global PWA Install Banner ── */}
-      {showInstallBanner && (
-        <div style={{
-          position: 'fixed',
-          bottom: isStandaloneMode ? '0' : 'calc(72px + env(safe-area-inset-bottom, 0px))',
-          left: '50%', transform: 'translateX(-50%)',
-          width: '100%', maxWidth: 'var(--max-width)',
-          background: 'linear-gradient(135deg, #6366F1, #a855f7)',
-          color: '#fff',
-          padding: '0.85rem 1.25rem',
-          display: 'flex', alignItems: 'center', gap: '0.75rem',
-          zIndex: 60,
-          boxShadow: '0 -4px 20px rgba(99,102,241,0.35)',
-          animation: 'slideUp 0.4s cubic-bezier(0.16,1,0.3,1)',
-        }}>
-          <img src="/icon-192.png" alt="" style={{ width: '36px', height: '36px', borderRadius: '8px', flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontWeight: 800, fontSize: '0.85rem', margin: 0 }}>
-              {isIos ? '📲 Aggiungi SubTrack alla Home' : '📲 Installa SubTrack'}
-            </p>
-            <p style={{ fontSize: '0.7rem', opacity: 0.85, margin: 0 }}>
-              {isIos ? 'Tap Condividi → Aggiungi a schermata Home' : 'Gratis • 1 tap • Nessun App Store'}
-            </p>
-          </div>
-          <button
-            onClick={handleInstallClick}
-            style={{ background: '#fff', color: '#6366F1', border: 'none', borderRadius: '8px', padding: '0.45rem 0.9rem', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer', flexShrink: 0 }}>
-            {isIos ? 'Come?' : 'Installa'}
-          </button>
-          <button onClick={dismissInstallBanner} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, fontSize: '1rem' }}>×</button>
-        </div>
-      )}
-
-      {/* ── iOS Install Instructions Modal ── */}
-      {showIosModal && (
-        <div className="modal" onClick={() => setShowIosModal(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ textAlign: 'center' }}>
-            <div className="modal-handle" />
-            <h3 style={{ marginBottom: '0.25rem' }}>📲 Aggiungi alla Home</h3>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>Segui questi 2 passi per installare SubTrack</p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'var(--bg-input)', padding: '1rem', borderRadius: '12px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366F1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem', flexShrink: 0 }}>1</div>
-                <div style={{ textAlign: 'left' }}>
-                  <p style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '2px' }}>Tocca <strong>Condividi</strong></p>
-                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Il pulsante condividi "⬆️" in basso al centro di Safari</p>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'var(--bg-input)', padding: '1rem', borderRadius: '12px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366F1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem', flexShrink: 0 }}>2</div>
-                <div style={{ textAlign: 'left' }}>
-                  <p style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '2px' }}>Tocca <strong>"Aggiungi a schermata Home"</strong></p>
-                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Scorri in basso nel menu e tocca questa opzione</p>
-                </div>
-              </div>
-            </div>
-
-            <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => setShowIosModal(false)}>
-              Ho capito ✓
-            </button>
-          </div>
-        </div>
-      )}
+      {installBannerJSX}
+      {iosModalJSX}
 
       <nav className="tab-bar">
         <button className={`tab-item ${tab === 'dashboard' ? 'active' : ''}`} onClick={() => setTab('dashboard')}><LayoutDashboard size={20} /><span>{t('tab_home')}</span></button>
