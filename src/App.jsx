@@ -200,7 +200,7 @@ function MainApp() {
         redirectTo: window.location.origin
       });
       if (error) setAuthError(t('err_login'));
-      else setAuthMsg({ text: "Ti abbiamo inviato un'email con il link per reimpostare la password.", type: 'success' });
+      else setAuthMsg({ text: t('reset_pass_msg'), type: 'success' });
       return;
     }
 
@@ -500,7 +500,7 @@ function MainApp() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <label>{t('password_label')}</label>
                 {authMode === 'login' && (
-                   <span onClick={() => {setAuthMode('forgot-password'); setAuthMsg({text:'', type:''}); setAuthError('');}} style={{ fontSize: '0.75rem', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Password dimenticata?</span>
+                   <span onClick={() => {setAuthMode('forgot-password'); setAuthMsg({text:'', type:''}); setAuthError('');}} style={{ fontSize: '0.75rem', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>{t('forgot_pass_tab')}</span>
                 )}
               </div>
               <div style={{ position: 'relative' }}>
@@ -519,10 +519,10 @@ function MainApp() {
           
           <div style={{ marginTop: 'auto', paddingTop: '1.5rem' }}>
             <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
-              {authMode === 'login' ? t('login_btn') : authMode === 'signup' ? t('signup_btn') : "Invia email di reset"}
+              {authMode === 'login' ? t('login_btn') : authMode === 'signup' ? t('signup_btn') : t('reset_pass_btn')}
             </button>
             {authMode === 'forgot-password' && (
-              <p onClick={() => {setAuthMode('login'); setAuthMsg({text:'', type:''}); setAuthError('');}} style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '1rem', cursor: 'pointer', fontWeight: 600 }}>← Torna al login</p>
+              <p onClick={() => {setAuthMode('login'); setAuthMsg({text:'', type:''}); setAuthError('');}} style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '1rem', cursor: 'pointer', fontWeight: 600 }}>{t('back_to_login')}</p>
             )}
           </div>
         </form>
@@ -534,11 +534,11 @@ function MainApp() {
   // If user is resetting password, block the UI with a modal
   if (resetPasswordMode) return (
     <div className="app-container"><div className="auth-screen"><div className="auth-content">
-      <h1 className="logo-small" style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '1rem' }}>Reimposta Password</h1>
+      <h1 className="logo-small" style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '1rem' }}>{t('reset_pass_title')}</h1>
       <div className="glass-panel auth-card">
         <form onSubmit={handleUpdatePassword}>
           <div className="input-group">
-            <label>Nuova Password</label>
+            <label>{t('new_password_label')}</label>
             <div style={{ position: 'relative' }}>
               <input type={showPassword ? 'text' : 'password'} name="new_password" required />
               <button type="button" onClick={() => setShowPassword(p => !p)}
@@ -548,7 +548,7 @@ function MainApp() {
             </div>
           </div>
           {authError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: '0.5rem 0 0' }}>{authError}</p>}
-          <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>Aggiorna Password</button>
+          <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>{t('update_pass_btn')}</button>
         </form>
       </div>
     </div></div></div>

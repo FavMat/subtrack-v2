@@ -1,5 +1,5 @@
-// SubTrack Service Worker v13 - Network First, aggressive cache busting
-const CACHE_NAME = 'subtrack-cache-v13';
+// SubTrack Service Worker v14 - Network First, aggressive cache busting
+const CACHE_NAME = 'subtrack-cache-v14';
 const urlsToCache = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', event => {

@@ -12,6 +12,13 @@ export const translations = {
     demo_btn: "Prova la demo (Pro) →",
     err_pass_match: "Le password non coincidono.",
     confirm_email: "✅ Controlla la tua email per confermare!",
+    forgot_pass_tab: "Password dimenticata?",
+    reset_pass_msg: "Ti abbiamo inviato un'email con il link per reimpostare la password.",
+    reset_pass_btn: "Invia email di reset",
+    back_to_login: "← Torna al login",
+    reset_pass_title: "Reimposta Password",
+    new_password_label: "Nuova Password",
+    update_pass_btn: "Aggiorna Password",
 
     // Dashboard
     monthly_spend: "SPESA DEL MESE",
@@ -181,6 +188,13 @@ export const translations = {
     demo_btn: "Try Demo (Pro) →",
     err_pass_match: "Passwords do not match.",
     confirm_email: "✅ Check your email to confirm!",
+    forgot_pass_tab: "Forgot password?",
+    reset_pass_msg: "We have sent you an email with the link to reset your password.",
+    reset_pass_btn: "Send reset email",
+    back_to_login: "← Back to login",
+    reset_pass_title: "Reset Password",
+    new_password_label: "New Password",
+    update_pass_btn: "Update Password",
 
     // Dashboard
     monthly_spend: "MONTHLY SPEND",
