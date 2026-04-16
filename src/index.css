@@ -561,7 +561,7 @@ select {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 1.25rem;
+  padding: calc(1rem + env(safe-area-inset-top, 0px)) 1.25rem 1rem;
   background: var(--bg-card);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
