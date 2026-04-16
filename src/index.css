@@ -1160,6 +1160,7 @@ input:checked+.slider:before {
 /* ── Analytics Screen ─────────────────────────────────────────── */
 .analytics-toggle {
   display: flex;
+  width: 100%;
   background: var(--bg-input);
   border-radius: var(--radius-xs);
   padding: 4px;
@@ -1168,7 +1169,7 @@ input:checked+.slider:before {
 
 .analytics-toggle button {
   flex: 1;
-  padding: 0.6rem;
+  padding: 0.85rem 0.5rem;
   border: none;
   background: transparent;
   font-size: 0.8rem;

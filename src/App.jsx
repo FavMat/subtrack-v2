@@ -681,7 +681,7 @@ function MainApp() {
                   <p style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center', lineHeight: 1.2 }}>
                     {analyticsPeriod === 'yearly' ? t('total_yearly') : t('total_monthly')}
                   </p>
-                  <p style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--text-primary)', marginTop: '0.1rem' }}>€{currentTotalAmount.toFixed(0)}</p>
+                  <p style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--text-primary)', marginTop: '0.1rem' }}>€{currentTotalAmount.toFixed(2)}</p>
                 </div>
               </div>
             </div>
