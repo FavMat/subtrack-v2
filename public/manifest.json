@@ -13,5 +13,6 @@
       "sizes": "192x192 512x512 any",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "orientation": "portrait-primary"
 }
