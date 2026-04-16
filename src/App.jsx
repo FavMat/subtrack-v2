@@ -225,6 +225,23 @@ function MainApp() {
     }
   };
 
+  const handleUpdatePassword = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    const fd = new FormData(e.target);
+    const new_password = fd.get('new_password');
+    const { error } = await supabase.auth.updateUser({ password: new_password });
+    if (error) {
+      setAuthError('Errore: ' + error.message);
+    } else {
+      setResetPasswordMode(false);
+      setAuthMsg({ text: 'Password aggiornata con successo!', type: 'success' });
+      if (window.location.hash) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    }
+  };
+
   const onPlaidSuccess = useCallback(async (public_token) => {
     try {
       if (!isDemo && public_token !== 'demo-fallback') {
