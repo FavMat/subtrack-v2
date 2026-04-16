@@ -163,6 +163,7 @@ h2,
 h3 {
   font-weight: 700;
   line-height: 1.2;
+  margin: 0;
 }
 
 .logo {
@@ -1335,6 +1336,9 @@ input:checked+.slider:before {
   flex: 1;
   font-size: 0.875rem;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .top-sub-price {

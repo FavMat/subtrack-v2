@@ -643,9 +643,9 @@ function MainApp() {
                         {catSubs.sort((a, b) => toMonthly(b.price, b.cycle) - toMonthly(a.price, a.cycle)).map(sub => {
                           const subAmount = analyticsPeriod === 'yearly' ? toMonthly(sub.price, sub.cycle) * 12 : toMonthly(sub.price, sub.cycle);
                           return (
-                            <div key={sub.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{sub.name}</span>
-                              <span style={{ fontSize: '0.85rem', color: cat.color, fontWeight: 700 }}>€{subAmount.toFixed(2)}</span>
+                            <div key={sub.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', overflow: 'hidden' }}>
+                              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: '0.5rem', flex: 1 }}>{sub.name}</span>
+                              <span style={{ fontSize: '0.85rem', color: cat.color, fontWeight: 700, flexShrink: 0 }}>€{subAmount.toFixed(2)}</span>
                             </div>
                           );
                         })}
