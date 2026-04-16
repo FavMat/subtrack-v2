@@ -147,7 +147,6 @@ function MainApp() {
 
   const allCats = [...BASE_CATEGORIES, ...customCats];
 
-  const [authMode, setAuthMode] = useState('login'); // login | signup | forgot-password
   const [resetPasswordMode, setResetPasswordMode] = useState(false);
 
   useEffect(() => {
@@ -208,6 +207,11 @@ function MainApp() {
       else if (data.user) setAuthMsg({ text: t('signup_success'), type: 'success' });
     } else {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) setAuthError(t('err_login'));
+      else if (data.user) {
+        setUser(data.user); setIsDemo(false);
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+        const proStatus = profile?.is_pro || profile?.is_pro_manual;
         setIsPro(!!proStatus);
         if (!proStatus) setPaywallOpen(true);
       }
