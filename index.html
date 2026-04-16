@@ -56,30 +56,10 @@
           showDebugOverlay('UNHANDLED PROMISE: ' + (e.reason?.message || e.reason || e));
         });
 
-        // iOS PWA: force repaint when returning from file picker
-        function forceRepaint() {
-          var root = document.getElementById('root');
-          if (!root) return;
-          root.style.opacity = '0.999';
-          requestAnimationFrame(function() {
-            requestAnimationFrame(function() { root.style.opacity = ''; });
-          });
-        }
-
+        // NOTA: Rimossa the forceRepaint() trick (opacity: 0.999) perché 
+        // causa il collasso "White Screen" delle WebViews iOS quando ci sono i backdrop-filter!
         window.addEventListener('pageshow', function(e) {
-          showDebugOverlay('pageshow fired, persisted=' + e.persisted);
-          forceRepaint();
           if (e.persisted) { window.location.reload(); }
-        });
-
-        document.addEventListener('visibilitychange', function() {
-          showDebugOverlay('visibility: ' + (document.hidden ? 'hidden' : 'visible'));
-          if (!document.hidden) forceRepaint();
-        });
-
-        window.addEventListener('focus', function() {
-          showDebugOverlay('window focus');
-          forceRepaint();
         });
       })();
     </script>

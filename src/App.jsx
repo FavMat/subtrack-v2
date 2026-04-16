@@ -160,23 +160,8 @@ function MainApp() {
 
   // iOS PWA: force React re-render when app returns from background (e.g. after file picker)
   useEffect(() => {
-    const [repaintTick, setRepaintTick] = React.useState ? undefined : undefined; // noop to keep hooks order
-    const handleVisible = () => {
-      if (!document.hidden) {
-        // Flush GPU layer via opacity flicker
-        const root = document.getElementById('root');
-        if (root) {
-          root.style.opacity = '0.999';
-          requestAnimationFrame(() => { root.style.opacity = ''; });
-        }
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisible);
-    window.addEventListener('focus', handleVisible);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisible);
-      window.removeEventListener('focus', handleVisible);
-    };
+    // Il vecchio hack 'opacity: 0.999' causava il WebGL Context Loss
+    // distruggendo l'intera interfaccia al ritorno dal File Picker. Rimosso.
   }, []);
 
   useEffect(() => { localStorage.setItem('st_cats', JSON.stringify(customCats)); }, [customCats]);
