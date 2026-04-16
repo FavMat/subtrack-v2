@@ -72,6 +72,7 @@ export const translations = {
     monthly_recap: "Recap Mensile",
     monthly_recap_desc: "Ricevi previsioni spese ogni 1° del mese",
     logout: "Esci dall'account",
+    contact_support: "✉️ Contatta il Supporto",
 
     // Modals
     new_cat: "Nuova Categoria",
@@ -261,6 +262,7 @@ export const translations = {
     monthly_recap: "Monthly Recap",
     monthly_recap_desc: "Receive expense forecasts on the 1st of every month",
     logout: "Sign out",
+    contact_support: "✉️ Contact Support",
 
     // Modals
     new_cat: "New Category",

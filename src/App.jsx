@@ -995,7 +995,14 @@ function MainApp() {
               )}
             </div>
 
-            <button onClick={logout} className="btn btn-danger" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '2.5rem' }}>
+            <a
+              href={`mailto:mttfvll@gmail.com?subject=${encodeURIComponent('SubTrack - Support Request')}&body=${encodeURIComponent('Hi,\n\nI need help with SubTrack:\n\n')}`}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', padding: '0.85rem', marginTop: '2.5rem', borderRadius: 'var(--radius-xs)', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--accent)', fontWeight: 700, fontSize: '0.875rem', textDecoration: 'none', boxShadow: 'var(--shadow-xs)' }}
+            >
+              <Mail size={16} /> {t('contact_support')}
+            </a>
+
+            <button onClick={logout} className="btn btn-danger" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '0.75rem' }}>
               <LogOut size={16} style={{ marginRight: '6px' }} /> {t('logout')}
             </button>
           </div>
