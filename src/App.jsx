@@ -70,7 +70,10 @@ function MainApp() {
   const [lang, setLang] = useState(() => {
     const saved = localStorage.getItem('st_lang');
     if (saved) return saved;
-    return navigator.language.toLowerCase().startsWith('it') ? 'it' : 'en';
+    // Check all preferred languages (navigator.languages is an array)
+    const langs = navigator.languages || [navigator.language || 'en'];
+    const isItalian = langs.some(l => l.toLowerCase().startsWith('it'));
+    return isItalian ? 'it' : 'en';
   });
 
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -502,15 +505,15 @@ function MainApp() {
       <img src="/icon-192.png" alt="" style={{ width: '36px', height: '36px', borderRadius: '8px', flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontWeight: 800, fontSize: '0.85rem', margin: 0 }}>
-          {isIos ? '📲 Aggiungi SubTrack alla Home' : '📲 Installa SubTrack'}
+          {isIos ? t('install_banner_ios') : t('install_banner_android')}
         </p>
         <p style={{ fontSize: '0.7rem', opacity: 0.85, margin: 0 }}>
-          {isIos ? 'Tap Condividi → Aggiungi a schermata Home' : 'Gratis • 1 tap • Nessun App Store'}
+          {isIos ? t('install_banner_sub_ios') : t('install_banner_sub_android')}
         </p>
       </div>
       <button onClick={handleInstallClick}
         style={{ background: '#fff', color: '#6366F1', border: 'none', borderRadius: '8px', padding: '0.45rem 0.9rem', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer', flexShrink: 0 }}>
-        {isIos ? 'Come?' : 'Installa'}
+        {isIos ? t('install_banner_btn_ios') : t('install_banner_btn_android')}
       </button>
       <button onClick={dismissInstallBanner}
         style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, fontSize: '1.1rem' }}>×</button>
@@ -521,25 +524,25 @@ function MainApp() {
     <div className="modal" onClick={() => setShowIosModal(false)}>
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ textAlign: 'center' }}>
         <div className="modal-handle" />
-        <h3 style={{ marginBottom: '0.25rem' }}>📲 Aggiungi alla Home</h3>
-        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>Segui questi 2 passi per installare SubTrack</p>
+        <h3 style={{ marginBottom: '0.25rem' }}>{t('install_modal_title')}</h3>
+        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>{t('install_modal_subtitle')}</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'var(--bg-input)', padding: '1rem', borderRadius: '12px' }}>
             <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366F1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', flexShrink: 0 }}>1</div>
             <div style={{ textAlign: 'left' }}>
-              <p style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '2px' }}>Tocca <strong>Condividi</strong> ⬆️</p>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Il pulsante in basso al centro di Safari</p>
+              <p style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '2px' }}>{t('install_step1_title')}</p>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{t('install_step1_desc')}</p>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'var(--bg-input)', padding: '1rem', borderRadius: '12px' }}>
             <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366F1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', flexShrink: 0 }}>2</div>
             <div style={{ textAlign: 'left' }}>
-              <p style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '2px' }}>Tocca <strong>"Aggiungi a Schermata Home"</strong></p>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Scorri in basso nel menu condivisione</p>
+              <p style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '2px' }}>{t('install_step2_title')}</p>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{t('install_step2_desc')}</p>
             </div>
           </div>
         </div>
-        <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => setShowIosModal(false)}>Ho capito ✓</button>
+        <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => setShowIosModal(false)}>{t('install_got_it')}</button>
       </div>
     </div>
   ) : null;
