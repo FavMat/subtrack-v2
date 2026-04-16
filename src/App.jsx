@@ -75,40 +75,42 @@ function MainApp() {
 
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isIos, setIsIos] = useState(false);
-  const [showIosPrompt, setShowIosPrompt] = useState(false);
+  const [showIosModal, setShowIosModal] = useState(false);
+  const [installBannerDismissed, setInstallBannerDismissed] = useState(
+    () => localStorage.getItem('st_install_dismissed') === '1'
+  );
 
   useEffect(() => {
     localStorage.setItem('st_lang', lang);
   }, [lang]);
 
   useEffect(() => {
-    // Rileva se è un iPhone/iPad che gira nel browser standard di Safari
     const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    if (isIOSDevice && !isStandalone) {
-      setIsIos(true);
-    }
+    if (isIOSDevice && !isStandalone) setIsIos(true);
 
-    // Intercetta PWA Prompt su Android / Chrome Desktop
-    const handler = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
+    const handler = (e) => { e.preventDefault(); setDeferredPrompt(e); };
     window.addEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', () => setDeferredPrompt(null));
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
   const handleInstallClick = async () => {
-    if (isIos) {
-      setShowIosPrompt(true);
-      return;
-    }
+    if (isIos) { setShowIosModal(true); return; }
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') setDeferredPrompt(null);
+      if (outcome === 'accepted') { setDeferredPrompt(null); setInstallBannerDismissed(true); }
     }
   };
+
+  const dismissInstallBanner = () => {
+    setInstallBannerDismissed(true);
+    localStorage.setItem('st_install_dismissed', '1');
+  };
+
+  const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  const showInstallBanner = !isStandaloneMode && !installBannerDismissed && (deferredPrompt || isIos);
 
   const t = (key) => translations[lang]?.[key] || translations['en'][key] || key;
 
@@ -490,19 +492,7 @@ function MainApp() {
       <h1 className="logo-small" style={{ fontSize: '2.6rem', textAlign: 'center', margin: '0 0 -5px' }}>SubTrack</h1>
       <p className="hero-subtitle" style={{ textAlign: 'center', marginBottom: '1.25rem' }}>{t('app_subtitle')}</p>
 
-      {/* PWA INSTALL PROMPT */}
-      {(deferredPrompt || isIos) && (
-        <div style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '12px', marginBottom: '1.25rem', border: '1px solid var(--border)', textAlign: 'center' }}>
-          <h4 style={{ fontWeight: 800, color: 'var(--accent)', fontSize: '1rem', marginBottom: '4px' }}>{t('install_title')}</h4>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>{t('install_desc')}</p>
-          <button onClick={handleInstallClick} className="btn btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
-            {t('install_btn')}
-          </button>
-          {showIosPrompt && (
-            <p style={{ marginTop: '10px', fontSize: '0.75rem', color: 'var(--accent-2)', fontWeight: 600 }}>{t('install_ios')}</p>
-          )}
-        </div>
-      )}
+      {/* PWA install banner is now global (see below) */}
 
       <div className="glass-panel auth-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         <div className="auth-tabs" style={{ marginBottom: '1.5rem' }}>
@@ -1245,6 +1235,72 @@ function MainApp() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Global PWA Install Banner ── */}
+      {showInstallBanner && (
+        <div style={{
+          position: 'fixed',
+          bottom: isStandaloneMode ? '0' : 'calc(72px + env(safe-area-inset-bottom, 0px))',
+          left: '50%', transform: 'translateX(-50%)',
+          width: '100%', maxWidth: 'var(--max-width)',
+          background: 'linear-gradient(135deg, #6366F1, #a855f7)',
+          color: '#fff',
+          padding: '0.85rem 1.25rem',
+          display: 'flex', alignItems: 'center', gap: '0.75rem',
+          zIndex: 60,
+          boxShadow: '0 -4px 20px rgba(99,102,241,0.35)',
+          animation: 'slideUp 0.4s cubic-bezier(0.16,1,0.3,1)',
+        }}>
+          <img src="/icon-192.png" alt="" style={{ width: '36px', height: '36px', borderRadius: '8px', flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontWeight: 800, fontSize: '0.85rem', margin: 0 }}>
+              {isIos ? '📲 Aggiungi SubTrack alla Home' : '📲 Installa SubTrack'}
+            </p>
+            <p style={{ fontSize: '0.7rem', opacity: 0.85, margin: 0 }}>
+              {isIos ? 'Tap Condividi → Aggiungi a schermata Home' : 'Gratis • 1 tap • Nessun App Store'}
+            </p>
+          </div>
+          <button
+            onClick={handleInstallClick}
+            style={{ background: '#fff', color: '#6366F1', border: 'none', borderRadius: '8px', padding: '0.45rem 0.9rem', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer', flexShrink: 0 }}>
+            {isIos ? 'Come?' : 'Installa'}
+          </button>
+          <button onClick={dismissInstallBanner} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, fontSize: '1rem' }}>×</button>
+        </div>
+      )}
+
+      {/* ── iOS Install Instructions Modal ── */}
+      {showIosModal && (
+        <div className="modal" onClick={() => setShowIosModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ textAlign: 'center' }}>
+            <div className="modal-handle" />
+            <h3 style={{ marginBottom: '0.25rem' }}>📲 Aggiungi alla Home</h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>Segui questi 2 passi per installare SubTrack</p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'var(--bg-input)', padding: '1rem', borderRadius: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366F1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem', flexShrink: 0 }}>1</div>
+                <div style={{ textAlign: 'left' }}>
+                  <p style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '2px' }}>Tocca <strong>Condividi</strong></p>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Il pulsante condividi "⬆️" in basso al centro di Safari</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'var(--bg-input)', padding: '1rem', borderRadius: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366F1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem', flexShrink: 0 }}>2</div>
+                <div style={{ textAlign: 'left' }}>
+                  <p style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '2px' }}>Tocca <strong>"Aggiungi a schermata Home"</strong></p>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Scorri in basso nel menu e tocca questa opzione</p>
+                </div>
+              </div>
+            </div>
+
+            <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => setShowIosModal(false)}>
+              Ho capito ✓
+            </button>
           </div>
         </div>
       )}
