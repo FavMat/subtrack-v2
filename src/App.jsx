@@ -147,11 +147,17 @@ function MainApp() {
 
   const allCats = [...BASE_CATEGORIES, ...customCats];
 
+  const [authMode, setAuthMode] = useState('login'); // login | signup | forgot-password
+  const [resetPasswordMode, setResetPasswordMode] = useState(false);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) { setUser(session.user); fetchAll(session.user); }
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setResetPasswordMode(true);
+      }
       if (session) { setUser(session.user); fetchAll(session.user); }
       else { setUser(null); setIsDemo(false); setSubs([]); }
     });
@@ -179,22 +185,29 @@ function MainApp() {
 
   const handleAuth = async (e) => {
     e.preventDefault();
+    setAuthError(''); setAuthMsg({ text: '', type: '' });
     const fd = new FormData(e.target);
-    const email = fd.get('email'), password = fd.get('password');
-    setAuthError('');
+    const email = fd.get('email');
+    
+    if (authMode === 'forgot-password') {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin
+      });
+      if (error) setAuthError(t('err_login'));
+      else setAuthMsg({ text: "Ti abbiamo inviato un'email con il link per reimpostare la password.", type: 'success' });
+      return;
+    }
+
+    const password = fd.get('password');
+    const confirm = fd.get('confirm');
+    
     if (authMode === 'signup') {
-      const confirm = fd.get('confirm');
       if (password !== confirm) return setAuthMsg({ text: t('err_pass_match'), type: 'error' });
       const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) setAuthError(error.message);
-      else { setUser(data.user); setIsDemo(false); setPaywallOpen(true); }
+      if (error) setAuthError(t('err_login'));
+      else if (data.user) setAuthMsg({ text: t('signup_success'), type: 'success' });
     } else {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setAuthError(error.message);
-      else {
-        setUser(data.user); setIsDemo(false);
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-        const proStatus = profile?.is_pro || profile?.is_pro_manual;
         setIsPro(!!proStatus);
         if (!proStatus) setPaywallOpen(true);
       }
@@ -463,30 +476,70 @@ function MainApp() {
         </div>
       )}
 
-      <div className="glass-panel auth-card">
-        <div className="auth-tabs">
-          <button className={`auth-tab ${authMode === 'login' ? 'active' : ''}`} onClick={() => setAuthMode('login')}>{t('login_tab')}</button>
-          <button className={`auth-tab ${authMode === 'signup' ? 'active' : ''}`} onClick={() => setAuthMode('signup')}>{t('signup_tab')}</button>
+      <div className="glass-panel auth-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <div className="auth-tabs" style={{ marginBottom: '1.5rem' }}>
+          <button className={`auth-tab ${authMode === 'login' ? 'active' : ''}`} onClick={() => {setAuthMode('login'); setAuthMsg({text:'', type:''}); setAuthError('');}}>{t('login_tab')}</button>
+          <button className={`auth-tab ${authMode === 'signup' ? 'active' : ''}`} onClick={() => {setAuthMode('signup'); setAuthMsg({text:'', type:''}); setAuthError('');}}>{t('signup_tab')}</button>
         </div>
-        <form onSubmit={handleAuth}>
+        <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           <div className="input-group"><label>{t('email_label')}</label><input type="email" name="email" required /></div>
+          
+          {authMode !== 'forgot-password' && (
+            <div className="input-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label>{t('password_label')}</label>
+                {authMode === 'login' && (
+                   <span onClick={() => {setAuthMode('forgot-password'); setAuthMsg({text:'', type:''}); setAuthError('');}} style={{ fontSize: '0.75rem', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>Password dimenticata?</span>
+                )}
+              </div>
+              <div style={{ position: 'relative' }}>
+                <input type={showPassword ? 'text' : 'password'} name="password" required />
+                <button type="button" onClick={() => setShowPassword(p => !p)}
+                  style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '4px' }}>
+                  {showPassword ? '🙈' : '👁️'}
+                </button>
+              </div>
+            </div>
+          )}
+          
+          {authMode === 'signup' && <div className="input-group"><label>{t('confirm_password_label')}</label><input type="password" name="confirm" required /></div>}
+          {authError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: '0.5rem 0 0' }}>{authError}</p>}
+          {authMsg.text && <p className={`auth-message ${authMsg.type}`}>{authMsg.text}</p>}
+          
+          <div style={{ marginTop: 'auto', paddingTop: '1.5rem' }}>
+            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
+              {authMode === 'login' ? t('login_btn') : authMode === 'signup' ? t('signup_btn') : "Invia email di reset"}
+            </button>
+            {authMode === 'forgot-password' && (
+              <p onClick={() => {setAuthMode('login'); setAuthMsg({text:'', type:''}); setAuthError('');}} style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '1rem', cursor: 'pointer', fontWeight: 600 }}>← Torna al login</p>
+            )}
+          </div>
+        </form>
+      </div>
+      <button className="btn btn-outline" style={{ marginTop: '0.75rem' }} onClick={startDemo}>{t('demo_btn')}</button>
+    </div></div></div>
+  );
+
+  // If user is resetting password, block the UI with a modal
+  if (resetPasswordMode) return (
+    <div className="app-container"><div className="auth-screen"><div className="auth-content">
+      <h1 className="logo-small" style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '1rem' }}>Reimposta Password</h1>
+      <div className="glass-panel auth-card">
+        <form onSubmit={handleUpdatePassword}>
           <div className="input-group">
-            <label>{t('password_label')}</label>
+            <label>Nuova Password</label>
             <div style={{ position: 'relative' }}>
-              <input type={showPassword ? 'text' : 'password'} name="password" required />
+              <input type={showPassword ? 'text' : 'password'} name="new_password" required />
               <button type="button" onClick={() => setShowPassword(p => !p)}
                 style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '4px' }}>
                 {showPassword ? '🙈' : '👁️'}
               </button>
             </div>
           </div>
-          {authMode === 'signup' && <div className="input-group"><label>{t('confirm_password_label')}</label><input type="password" name="confirm" required /></div>}
           {authError && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: '0.5rem 0 0' }}>{authError}</p>}
-          {authMsg.text && <p className={`auth-message ${authMsg.type}`}>{authMsg.text}</p>}
-          <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem' }}>{authMode === 'login' ? t('login_btn') : t('signup_btn')}</button>
+          <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>Aggiorna Password</button>
         </form>
       </div>
-      <button className="btn btn-outline" style={{ marginTop: '0.75rem' }} onClick={startDemo}>{t('demo_btn')}</button>
     </div></div></div>
   );
 
