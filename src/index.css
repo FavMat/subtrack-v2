@@ -129,7 +129,7 @@ body {
 
 /* ── App Shell ──────────────────────────────────────────────── */
 .app-container {
-  width: 100vw;
+  width: 100%;
   max-width: var(--max-width);
   min-height: 100vh;
   position: relative;
@@ -140,7 +140,7 @@ body {
 
 /* ── Screen ─────────────────────────────────────────────────── */
 .screen {
-  padding: 1.25rem 1.25rem 100px;
+  padding: calc(6rem + env(safe-area-inset-top, 0px)) 1.25rem 100px;
   animation: fadeUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   flex: 1;
 }
@@ -565,10 +565,14 @@ select {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(99, 102, 241, 0.08);
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--max-width);
   z-index: 50;
-  margin: 0 0 1rem 0;
+  margin: 0;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8), 0 4px 20px rgba(15, 23, 42, 0.04);
 }
 
