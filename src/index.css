@@ -93,6 +93,7 @@ body {
   overflow-x: hidden;
   overscroll-behavior-x: none;
   width: 100%;
+  scrollbar-gutter: stable;
 
   /* Animated gradient mesh background */
   background-color: #F7F8FC;
@@ -563,7 +564,7 @@ select {
   justify-content: space-between;
   align-items: center;
   padding: calc(1rem + env(safe-area-inset-top, 0px)) 1.25rem 1rem;
-  background: var(--bg-card);
+  background: rgba(255, 255, 255, 0.65);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(99, 102, 241, 0.08);
