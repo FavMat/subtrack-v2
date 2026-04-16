@@ -163,6 +163,13 @@ function MainApp() {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (window.location.hash.includes('type=recovery')) {
+      setResetPasswordMode(true);
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, []);
+
   // iOS PWA: force React re-render when app returns from background (e.g. after file picker)
   useEffect(() => {
     // Il vecchio hack 'opacity: 0.999' causava il WebGL Context Loss

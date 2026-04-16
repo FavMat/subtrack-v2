@@ -78,18 +78,20 @@
 
 /* ── Body + Animated Gradient Mesh ─────────────────────────── */
 html {
-  overflow: hidden;
-  height: 100%;
-  width: 100%;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg);
   color: var(--text-primary);
+  min-height: 100vh;
   display: flex;
   justify-content: center;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
   width: 100%;
 
   /* Animated gradient mesh background */
@@ -127,9 +129,9 @@ body {
 
 /* ── App Shell ──────────────────────────────────────────────── */
 .app-container {
-  width: 100%;
+  width: 100vw;
   max-width: var(--max-width);
-  height: 100%;
+  min-height: 100vh;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -138,11 +140,9 @@ body {
 
 /* ── Screen ─────────────────────────────────────────────────── */
 .screen {
-  padding: 0 1.25rem 1.25rem;
+  padding: 1.25rem 1.25rem 100px;
   animation: fadeUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  flex: 1 1 auto;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  flex: 1;
 }
 
 @keyframes fadeUp {
@@ -557,7 +557,6 @@ select {
 
 /* ── Topbar ───────────────────────────────────────────────────── */
 .topbar {
-  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -566,8 +565,10 @@ select {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(99, 102, 241, 0.08);
+  position: sticky;
+  top: 0;
   z-index: 50;
-  margin: 0 0 1.25rem 0;
+  margin: 0 0 1rem 0;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8), 0 4px 20px rgba(15, 23, 42, 0.04);
 }
 
@@ -898,8 +899,12 @@ select {
 
 /* ── Tab Bar ────────────────────────────────────────────────────── */
 .tab-bar {
-  flex-shrink: 0;
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
   width: 100%;
+  max-width: var(--max-width);
   background: var(--bg-card);
   backdrop-filter: blur(20px) saturate(1.8);
   -webkit-backdrop-filter: blur(20px) saturate(1.8);
