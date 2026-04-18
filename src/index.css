@@ -1519,3 +1519,158 @@ input:checked+.slider:before {
   padding: 0.6rem 1.2rem;
   font-size: 0.875rem;
 }
+
+/* ══════════════════════════════════════════════════════════
+   DESKTOP RESPONSIVE LAYOUT
+   ══════════════════════════════════════════════════════════ */
+@media (min-width: 1024px) {
+  /* Scale up the entire UI via root font-size scaling (mostly rem-based) */
+  html {
+    font-size: 18px !important;
+  }
+
+  body {
+    display: block; /* Remove flex centering constraint */
+    background: var(--bg-body); /* Ensure background spreads if screen is bigger than 1400px */
+  }
+
+  /* Expand main container to a max width and use grid */
+  .app-container.dashboard {
+    width: 100% !important;
+    max-width: 1400px !important;
+    margin: 0 auto !important;
+    display: grid !important;
+    grid-template-columns: 240px 1fr !important;
+    grid-template-rows: auto 1fr auto !important;
+    align-items: flex-start !important;
+    min-height: 100vh !important;
+  }
+
+  /* Hide the PWA install banner on Desktop, it's irrelevant */
+  .install-banner {
+    display: none !important;
+  }
+
+  /* Anchor the floating add button directly to the bottom right corner of the screen */
+  .floating-add-btn {
+    right: 2.5rem !important;
+    bottom: 2.5rem !important;
+    transform: none !important;
+  }
+
+  /* Transform bottom tab-bar into a left sidebar */
+  .tab-bar {
+    grid-column: 1 / 2;
+    grid-row: 1 / 3;
+    position: sticky;
+    top: 0;
+    left: 0;
+    transform: none;
+    width: 100%;
+    height: 100vh;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 2rem 1.5rem;
+    border-top: none;
+    border-right: 1px solid rgba(255,255,255,0.8);
+    backdrop-filter: blur(20px);
+    box-shadow: 4px 0 20px rgba(15, 23, 42, 0.03);
+    z-index: 10;
+  }
+
+  .tab-item {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    border-radius: 12px;
+    margin-bottom: 0.5rem;
+    width: 100%;
+  }
+
+  /* Make hover state better on Desktop */
+  .tab-item:not(.active):hover {
+    background: rgba(99, 102, 241, 0.05);
+    color: var(--accent);
+  }
+
+  /* Redesign active bar indicator to left instead of top */
+  .tab-item.active::before {
+    top: 20%;
+    bottom: 20%;
+    height: auto;
+    left: 0;
+    width: 3px;
+    border-radius: 0 4px 4px 0;
+    background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  }
+
+  .tab-item svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  /* Show Logo in sidebar header */
+  .sidebar-logo-container {
+    display: block !important;
+    margin-bottom: 3rem;
+    padding: 0 0.5rem;
+  }
+
+  /* Adjust Topbar so it sits only in the right column space */
+  .topbar {
+    grid-column: 2 / 3;
+    grid-row: 1 / 2;
+    position: sticky;
+    top: 0;
+    left: 0;
+    transform: none;
+    width: 100%;
+    max-width: 100%;
+    padding: 1.5rem 2rem;
+    z-index: 5;
+    background: transparent;
+    border-bottom: none;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  /* Hide the topbar SubTrack logo text since it's now in the sidebar */
+  .topbar .logo-small {
+    display: none;
+  }
+
+  /* Adjust screen padding */
+  .screen {
+    grid-column: 2 / 3;
+    grid-row: 2 / 3;
+    padding: 1rem 2rem 3rem 2rem;
+  }
+
+  /* Multi-column Grid for Dashboard Subscriptions */
+  .subs-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 1.25rem;
+    padding-bottom: 2rem;
+  }
+
+  /* Section header for grid needs full width */
+  .subs-list .section-header {
+    grid-column: 1 / -1;
+    margin-bottom: 0.25rem;
+    font-size: 1.2rem;
+  }
+
+  /* Analytics Grid side by side */
+  .analytics-desktop-wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    align-items: stretch;
+  }
+}

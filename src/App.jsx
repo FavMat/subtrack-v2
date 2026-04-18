@@ -739,10 +739,11 @@ function MainApp() {
               </div>
             </div>
 
-            <div className="glass-panel" style={{ marginBottom: '1.25rem', padding: '1.25rem' }}>
-              <p style={{ fontWeight: 800, fontSize: '1rem', marginBottom: '1.25rem', color: 'var(--text-primary)' }}>
-                {analyticsPeriod === 'yearly' ? t('breakdown_yearly') : t('breakdown_monthly')}
-              </p>
+            <div className="analytics-desktop-wrap">
+              <div className="glass-panel" style={{ marginBottom: '1.25rem', padding: '1.25rem' }}>
+                <p style={{ fontWeight: 800, fontSize: '1rem', marginBottom: '1.25rem', color: 'var(--text-primary)' }}>
+                  {analyticsPeriod === 'yearly' ? t('breakdown_yearly') : t('breakdown_monthly')}
+                </p>
 
               {allCats.map(cat => {
                 const catSubs = subs.filter(s => s.category === cat.value);
@@ -813,7 +814,8 @@ function MainApp() {
               {subs.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{t('no_subs')}</p>}
             </div>
           </div>
-        )}
+        </div>
+      )}
 
         {/* ══ SETTINGS TAB ══ */}
         {tab === 'settings' && (
@@ -1313,6 +1315,12 @@ function MainApp() {
       {iosModalJSX}
 
       <nav className="tab-bar">
+        <div className="sidebar-logo-container" style={{ display: 'none' }}>
+          <div className="logo-small" style={{ fontSize: '1.6rem', marginBottom: '0.5rem' }}>SubTrack</div>
+          {isPro && <span style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-2))', color: '#fff', fontSize: '0.6rem', fontWeight: 800, padding: '0.2rem 0.6rem', borderRadius: '999px', letterSpacing: '0.07em' }}>★ PRO</span>}
+          {isDemo && <span style={{ background: 'rgba(245,158,11,0.12)', color: '#D97706', fontSize: '0.6rem', fontWeight: 800, padding: '0.2rem 0.6rem', borderRadius: '999px', letterSpacing: '0.07em' }}>DEMO</span>}
+        </div>
+        
         <button className={`tab-item ${tab === 'dashboard' ? 'active' : ''}`} onClick={() => setTab('dashboard')}><LayoutDashboard size={20} /><span>{t('tab_home')}</span></button>
         <button className={`tab-item ${tab === 'analytics' ? 'active' : ''}`} onClick={() => setTab('analytics')}><TrendingUp size={20} /><span>{t('tab_analytics')}</span></button>
         <button className={`tab-item ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}><Settings size={20} /><span>{t('tab_settings')}</span></button>
